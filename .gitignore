@@ -15,9 +15,15 @@
 /Builds/Linux64/LinuxPlayer_s.debug
 /Builds/Linux64/UnityPlayer.so
 /Builds/Linux64/UnityPlayer_s.debug
+/Builds/Linux64/Cloud
+/Builds/Linux64/Modules
+/Builds/Linux64/Sandbox
+/Builds/Linux64/Worlds
+/Builds/Linux64/steam_appid.txt
 /Builds/Linux64_Headless/LinuxPlayer_s.debug
 /Builds/Linux64_Headless/UnityPlayer.so
 /Builds/Linux64_Headless/UnityPlayer_s.debug
+/Builds/Native
 
 # Generated platform hashes file
 /Builds/Shared/Bundles/core.masterbundle.hash
@@ -83,9 +89,13 @@ Execute.config
 # Unity created files
 /Library
 /Logs
+/TestResults
+/BenchmarkResults/*.json
+/BenchmarkResults/*.csv
 /obj
 /Temp
 /.vs
+/.vscode
 
 # Unity per-user editor settings
 /UserSettings
@@ -106,6 +116,8 @@ Execute.config
 *.pdb
 *.x86
 *.x86_64
+*.so
+*.so.meta
 *.app
 Builds/*/UnityPlayer.dll
 

@@ -4,6 +4,7 @@
 ////////////////////////////////////////////////////////////////////////////////////////
 using System.Collections.Generic;
 using UnityEngine;
+using SDG.Unturned.LinuxPerformance;
 
 namespace SDG.Unturned
 {
@@ -463,6 +464,90 @@ namespace SDG.Unturned
 			set => graphicsSettingsData.RenderMode2 = value;
 		}
 
+		public static ELinuxUpscalerMode LinuxUpscalerMode
+		{
+			get => graphicsSettingsData.LinuxUpscalerMode;
+			set => graphicsSettingsData.LinuxUpscalerMode = value;
+		}
+
+		public static EFsrQualityPreset LinuxFsrQualityPreset
+		{
+			get => graphicsSettingsData.LinuxFsrQualityPreset;
+			set => graphicsSettingsData.LinuxFsrQualityPreset = value;
+		}
+
+		public static float LinuxCustomRenderScale
+		{
+			get => Mathf.Clamp(graphicsSettingsData.LinuxCustomRenderScale, 0.333f, 1.0f);
+			set => graphicsSettingsData.LinuxCustomRenderScale = Mathf.Clamp(value, 0.333f, 1.0f);
+		}
+
+		public static float LinuxRcasSharpness
+		{
+			get => Mathf.Clamp01(graphicsSettingsData.LinuxRcasSharpness);
+			set => graphicsSettingsData.LinuxRcasSharpness = Mathf.Clamp01(value);
+		}
+
+		public static bool LinuxDynamicResolution
+		{
+			get => graphicsSettingsData.LinuxDynamicResolution;
+			set => graphicsSettingsData.LinuxDynamicResolution = value;
+		}
+
+		public static bool LinuxMotionAdaptiveResolution
+		{
+			get => graphicsSettingsData.LinuxMotionAdaptiveResolution;
+			set => graphicsSettingsData.LinuxMotionAdaptiveResolution = value;
+		}
+
+		public static float LinuxTargetFrameTimeMs
+		{
+			get => Mathf.Clamp(graphicsSettingsData.LinuxTargetFrameTimeMs, 6.9f, 66.7f);
+			set => graphicsSettingsData.LinuxTargetFrameTimeMs = Mathf.Clamp(value, 6.9f, 66.7f);
+		}
+
+		public static bool LinuxLowLatencyMode
+		{
+			get => graphicsSettingsData.LinuxLowLatencyMode;
+			set => graphicsSettingsData.LinuxLowLatencyMode = value;
+		}
+
+		public static ELinuxMemoryProfile LinuxMemoryProfile
+		{
+			get => graphicsSettingsData.LinuxMemoryProfile;
+			set => graphicsSettingsData.LinuxMemoryProfile = value;
+		}
+
+		public static ELinuxCullingProfile LinuxCullingProfile
+		{
+			get => graphicsSettingsData.LinuxCullingProfile;
+			set => graphicsSettingsData.LinuxCullingProfile = value;
+		}
+
+		public static bool LinuxCasEnabled
+		{
+			get => graphicsSettingsData.LinuxCasEnabled;
+			set => graphicsSettingsData.LinuxCasEnabled = value;
+		}
+
+		public static bool LinuxCacaoEnabled
+		{
+			get => graphicsSettingsData.LinuxCacaoEnabled;
+			set => graphicsSettingsData.LinuxCacaoEnabled = value;
+		}
+
+		public static bool LinuxSssrExperimental
+		{
+			get => graphicsSettingsData.LinuxSssrExperimental;
+			set => graphicsSettingsData.LinuxSssrExperimental = value;
+		}
+
+		public static bool LinuxDebugOverlay
+		{
+			get => graphicsSettingsData.LinuxDebugOverlay;
+			set => graphicsSettingsData.LinuxDebugOverlay = value;
+		}
+
 		public static event GraphicsSettingsApplied graphicsSettingsApplied;
 
 		private static bool changeResolution;
@@ -884,6 +969,7 @@ namespace SDG.Unturned
 				MainCamera.instance.renderingPath = renderMode == ERenderMode.DEFERRED ? RenderingPath.DeferredShading : RenderingPath.Forward;
 				MainCamera.instance.allowHDR = true;
 				MainCamera.instance.allowMSAA = false; // We no longer use MSAA in any mode.
+				MainCamera.instance.allowDynamicResolution = LinuxDynamicResolution || LinuxUpscalerMode != ELinuxUpscalerMode.Off;
 
 				ApplySunShaftsSettings();
 				ApplyOutlineSettings();
@@ -979,6 +1065,7 @@ namespace SDG.Unturned
 			++planarReflectionUpdateIndex;
 
 			UnturnedPostProcess.instance.applyUserSettings();
+			UpscalerManager.ResetHistory(reason);
 
 			graphicsSettingsApplied?.Invoke();
 
@@ -1045,6 +1132,20 @@ namespace SDG.Unturned
 				graphicsSettingsData.Resolution = new GraphicsSettingsResolution(ScreenEx.GetHighestRecommendedResolution());
 				UnturnedLog.info($"Restored default resolution to {graphicsSettingsData.Resolution.Width}x{graphicsSettingsData.Resolution.Height}");
 			}
+
+			if (!System.Enum.IsDefined(typeof(ELinuxUpscalerMode), graphicsSettingsData.LinuxUpscalerMode))
+				graphicsSettingsData.LinuxUpscalerMode = ELinuxUpscalerMode.Off;
+			if (!System.Enum.IsDefined(typeof(EFsrQualityPreset), graphicsSettingsData.LinuxFsrQualityPreset))
+				graphicsSettingsData.LinuxFsrQualityPreset = EFsrQualityPreset.Quality;
+			if (!System.Enum.IsDefined(typeof(ELinuxMemoryProfile), graphicsSettingsData.LinuxMemoryProfile))
+				graphicsSettingsData.LinuxMemoryProfile = ELinuxMemoryProfile.Automatico;
+			if (!System.Enum.IsDefined(typeof(ELinuxCullingProfile), graphicsSettingsData.LinuxCullingProfile))
+				graphicsSettingsData.LinuxCullingProfile = ELinuxCullingProfile.Original;
+			LinuxCustomRenderScale = LinuxCustomRenderScale;
+			LinuxRcasSharpness = LinuxRcasSharpness;
+			LinuxTargetFrameTimeMs = LinuxTargetFrameTimeMs;
+			if (LinuxCasEnabled && LinuxRcasSharpness > 0.001f)
+				LinuxCasEnabled = false;
 		}
 
 		internal static void ApplyFoliageQuality()

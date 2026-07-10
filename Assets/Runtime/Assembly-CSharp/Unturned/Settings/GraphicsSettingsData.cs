@@ -3,6 +3,7 @@
 // Please refer to the included LICENSE.txt for copyright notice and license details. //
 ////////////////////////////////////////////////////////////////////////////////////////
 using UnityEngine;
+using SDG.Unturned.LinuxPerformance;
 
 namespace SDG.Unturned
 {
@@ -62,6 +63,20 @@ namespace SDG.Unturned
 		public EGraphicQuality TerrainQuality { get; set; }
 		public ERenderMode RenderMode2;
 		public EGraphicQuality LandmarkQuality;
+		public ELinuxUpscalerMode LinuxUpscalerMode;
+		public EFsrQualityPreset LinuxFsrQualityPreset;
+		public float LinuxCustomRenderScale;
+		public float LinuxRcasSharpness;
+		public bool LinuxDynamicResolution;
+		public bool LinuxMotionAdaptiveResolution;
+		public float LinuxTargetFrameTimeMs;
+		public bool LinuxLowLatencyMode;
+		public ELinuxMemoryProfile LinuxMemoryProfile;
+		public ELinuxCullingProfile LinuxCullingProfile;
+		public bool LinuxCasEnabled;
+		public bool LinuxCacaoEnabled;
+		public bool LinuxSssrExperimental;
+		public bool LinuxDebugOverlay;
 
 		public GraphicsSettingsData()
 		{
@@ -116,6 +131,20 @@ namespace SDG.Unturned
 			this.TerrainQuality = EGraphicQuality.MEDIUM;
 			this.RenderMode2 = ERenderMode.FORWARD;
 			this.LandmarkQuality = EGraphicQuality.OFF;
+			LinuxUpscalerMode = ELinuxUpscalerMode.Off;
+			LinuxFsrQualityPreset = EFsrQualityPreset.Quality;
+			LinuxCustomRenderScale = 0.6667f;
+			LinuxRcasSharpness = 0.2f;
+			LinuxDynamicResolution = false;
+			LinuxMotionAdaptiveResolution = false;
+			LinuxTargetFrameTimeMs = 16.67f;
+			LinuxLowLatencyMode = false;
+			LinuxMemoryProfile = ELinuxMemoryProfile.Automatico;
+			LinuxCullingProfile = ELinuxCullingProfile.Original;
+			LinuxCasEnabled = false;
+			LinuxCacaoEnabled = false;
+			LinuxSssrExperimental = false;
+			LinuxDebugOverlay = false;
 		}
 	}
 }

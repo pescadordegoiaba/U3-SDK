@@ -3,6 +3,7 @@
 // Please refer to the included LICENSE.txt for copyright notice and license details. //
 ////////////////////////////////////////////////////////////////////////////////////////
 using UnityEngine;
+using SDG.Unturned.LinuxPerformance;
 
 namespace SDG.Unturned
 {
@@ -58,6 +59,16 @@ namespace SDG.Unturned
 		private static SleekButtonState outlineButton;
 		private static SleekButtonState terrainButton;
 		private static SleekButtonState renderButton;
+		private static SleekButtonState linuxUpscalerButton;
+		private static SleekButtonState linuxFsrPresetButton;
+		private static ISleekSlider linuxScaleSlider;
+		private static ISleekSlider linuxSharpnessSlider;
+		private static ISleekToggle linuxDynamicResolutionToggle;
+		private static ISleekToggle linuxMotionAdaptiveToggle;
+		private static ISleekToggle linuxLowLatencyToggle;
+		private static SleekButtonState linuxMemoryProfileButton;
+		private static SleekButtonState linuxCullingProfileButton;
+		private static ISleekToggle linuxDebugOverlayToggle;
 
 		public static void open()
 		{
@@ -306,6 +317,77 @@ namespace SDG.Unturned
 			//aaHint.isVisible = GraphicsSettings.renderMode == ERenderMode.DEFERRED && (GraphicsSettings.antiAliasingType == EAntiAliasingType.MSAA2 || GraphicsSettings.antiAliasingType == EAntiAliasingType.MSAA4 || GraphicsSettings.antiAliasingType == EAntiAliasingType.MSAA8);
 		}
 
+		private static void onSwappedLinuxUpscalerState(SleekButtonState button, int index)
+		{
+			GraphicsSettings.LinuxUpscalerMode = (ELinuxUpscalerMode) index;
+			GraphicsSettings.apply("alterou upscaler Linux");
+			updatePerfWarnings();
+		}
+
+		private static void onSwappedLinuxFsrPresetState(SleekButtonState button, int index)
+		{
+			GraphicsSettings.LinuxFsrQualityPreset = (EFsrQualityPreset) index;
+			GraphicsSettings.apply("alterou preset FSR Linux");
+			updatePerfWarnings();
+		}
+
+		private static void onDraggedLinuxScaleSlider(ISleekSlider slider, float state)
+		{
+			GraphicsSettings.LinuxCustomRenderScale = Mathf.Lerp(0.333f, 1.0f, state);
+			GraphicsSettings.LinuxFsrQualityPreset = EFsrQualityPreset.Custom;
+			GraphicsSettings.apply("alterou escala interna Linux");
+			linuxScaleSlider.UpdateLabel("Escala interna: " + Mathf.RoundToInt(GraphicsSettings.LinuxCustomRenderScale * 100.0f) + "%");
+			updatePerfWarnings();
+		}
+
+		private static void onDraggedLinuxSharpnessSlider(ISleekSlider slider, float state)
+		{
+			GraphicsSettings.LinuxRcasSharpness = state;
+			if (state > 0.001f)
+			{
+				GraphicsSettings.LinuxCasEnabled = false;
+			}
+			GraphicsSettings.apply("alterou nitidez RCAS Linux");
+			linuxSharpnessSlider.UpdateLabel("Nitidez RCAS: " + Mathf.RoundToInt(GraphicsSettings.LinuxRcasSharpness * 100.0f) + "%");
+			updatePerfWarnings();
+		}
+
+		private static void onToggledLinuxDynamicResolution(ISleekToggle toggle, bool state)
+		{
+			GraphicsSettings.LinuxDynamicResolution = state;
+			GraphicsSettings.apply("alterou resolução dinâmica Linux");
+		}
+
+		private static void onToggledLinuxMotionAdaptive(ISleekToggle toggle, bool state)
+		{
+			GraphicsSettings.LinuxMotionAdaptiveResolution = state;
+			GraphicsSettings.apply("alterou resolução adaptativa por movimento");
+		}
+
+		private static void onToggledLinuxLowLatency(ISleekToggle toggle, bool state)
+		{
+			GraphicsSettings.LinuxLowLatencyMode = state;
+			GraphicsSettings.apply("alterou modo de baixa latência");
+		}
+
+		private static void onSwappedLinuxMemoryProfile(SleekButtonState button, int index)
+		{
+			GraphicsSettings.LinuxMemoryProfile = (ELinuxMemoryProfile) index;
+			GraphicsSettings.apply("alterou perfil de memória Linux");
+		}
+
+		private static void onSwappedLinuxCullingProfile(SleekButtonState button, int index)
+		{
+			GraphicsSettings.LinuxCullingProfile = (ELinuxCullingProfile) index;
+			GraphicsSettings.apply("alterou perfil de culling Linux");
+		}
+
+		private static void onToggledLinuxDebugOverlay(ISleekToggle toggle, bool state)
+		{
+			GraphicsSettings.LinuxDebugOverlay = state;
+			GraphicsSettings.apply("alterou overlay de depuração Linux");
+		}
+
 		private static void onClickedBackButton(ISleekElement button)
 		{
 			if (Player.LocalPlayer != null)
@@ -374,6 +456,18 @@ namespace SDG.Unturned
 			outlineButton.state = ((int) GraphicsSettings.outlineQuality) - 1;
 			terrainButton.state = ((int) GraphicsSettings.terrainQuality) - 1;
 			renderButton.state = (int) GraphicsSettings.renderMode;
+			linuxUpscalerButton.state = (int) GraphicsSettings.LinuxUpscalerMode;
+			linuxFsrPresetButton.state = (int) GraphicsSettings.LinuxFsrQualityPreset;
+			linuxScaleSlider.Value = Mathf.InverseLerp(0.333f, 1.0f, GraphicsSettings.LinuxCustomRenderScale);
+			linuxScaleSlider.UpdateLabel("Escala interna: " + Mathf.RoundToInt(GraphicsSettings.LinuxCustomRenderScale * 100.0f) + "%");
+			linuxSharpnessSlider.Value = GraphicsSettings.LinuxRcasSharpness;
+			linuxSharpnessSlider.UpdateLabel("Nitidez RCAS: " + Mathf.RoundToInt(GraphicsSettings.LinuxRcasSharpness * 100.0f) + "%");
+			linuxDynamicResolutionToggle.Value = GraphicsSettings.LinuxDynamicResolution;
+			linuxMotionAdaptiveToggle.Value = GraphicsSettings.LinuxMotionAdaptiveResolution;
+			linuxLowLatencyToggle.Value = GraphicsSettings.LinuxLowLatencyMode;
+			linuxMemoryProfileButton.state = (int) GraphicsSettings.LinuxMemoryProfile;
+			linuxCullingProfileButton.state = (int) GraphicsSettings.LinuxCullingProfile;
+			linuxDebugOverlayToggle.Value = GraphicsSettings.LinuxDebugOverlay;
 
 			updatePerfWarnings();
 		}
@@ -397,6 +491,9 @@ namespace SDG.Unturned
 			blastToggle.IsInteractable = GraphicsSettings.renderMode == ERenderMode.DEFERRED;
 
 			scopeDarkPeripheralToggle.IsInteractable = GraphicsSettings.scopeQuality == EGraphicQuality.OFF;
+			linuxFsrPresetButton.isInteractable = GraphicsSettings.LinuxUpscalerMode != ELinuxUpscalerMode.Off;
+			linuxScaleSlider.IsInteractable = GraphicsSettings.LinuxUpscalerMode != ELinuxUpscalerMode.Off;
+			linuxSharpnessSlider.IsInteractable = GraphicsSettings.LinuxUpscalerMode == ELinuxUpscalerMode.Fsr1 || GraphicsSettings.LinuxUpscalerMode == ELinuxUpscalerMode.Auto;
 		}
 
 		public MenuConfigurationGraphicsUI()
@@ -875,6 +972,113 @@ namespace SDG.Unturned
 			renderButton.onSwappedState = onSwappedRenderState;
 			graphicsBox.AddChild(renderButton);
 			verticalOffset += 40;
+
+			linuxUpscalerButton = new SleekButtonState(new GUIContent("Off"), new GUIContent("Auto"), new GUIContent("FSR 1"), new GUIContent("FSR 2"), new GUIContent("FSR 3.1 Upscaling"));
+			linuxUpscalerButton.PositionOffset_X = 205;
+			linuxUpscalerButton.PositionOffset_Y = verticalOffset;
+			linuxUpscalerButton.SizeOffset_X = 200;
+			linuxUpscalerButton.SizeOffset_Y = 30;
+			linuxUpscalerButton.AddLabel("Upscaler Linux", ESleekSide.RIGHT);
+			linuxUpscalerButton.tooltip = "FSR 2/3.1 exigem backend Vulkan temporal real; quando indisponíveis usam fallback seguro.";
+			linuxUpscalerButton.onSwappedState = onSwappedLinuxUpscalerState;
+			graphicsBox.AddChild(linuxUpscalerButton);
+			verticalOffset += 40;
+
+			linuxFsrPresetButton = new SleekButtonState(new GUIContent("Native AA"), new GUIContent("Ultra Quality"), new GUIContent("Quality"), new GUIContent("Balanced"), new GUIContent("Performance"), new GUIContent("Ultra Performance"), new GUIContent("Custom"));
+			linuxFsrPresetButton.PositionOffset_X = 205;
+			linuxFsrPresetButton.PositionOffset_Y = verticalOffset;
+			linuxFsrPresetButton.SizeOffset_X = 200;
+			linuxFsrPresetButton.SizeOffset_Y = 30;
+			linuxFsrPresetButton.AddLabel("Preset FSR", ESleekSide.RIGHT);
+			linuxFsrPresetButton.onSwappedState = onSwappedLinuxFsrPresetState;
+			graphicsBox.AddChild(linuxFsrPresetButton);
+			verticalOffset += 40;
+
+			linuxScaleSlider = Glazier.Get().CreateSlider();
+			linuxScaleSlider.PositionOffset_X = 205;
+			linuxScaleSlider.PositionOffset_Y = verticalOffset;
+			linuxScaleSlider.SizeOffset_X = 200;
+			linuxScaleSlider.SizeOffset_Y = 20;
+			linuxScaleSlider.Orientation = ESleekOrientation.HORIZONTAL;
+			linuxScaleSlider.AddLabel("Escala interna: 67%", ESleekSide.RIGHT);
+			linuxScaleSlider.OnValueChanged += onDraggedLinuxScaleSlider;
+			graphicsBox.AddChild(linuxScaleSlider);
+			verticalOffset += 30;
+			linuxScaleSlider.SideLabel.SizeOffset_X += 120;
+
+			linuxSharpnessSlider = Glazier.Get().CreateSlider();
+			linuxSharpnessSlider.PositionOffset_X = 205;
+			linuxSharpnessSlider.PositionOffset_Y = verticalOffset;
+			linuxSharpnessSlider.SizeOffset_X = 200;
+			linuxSharpnessSlider.SizeOffset_Y = 20;
+			linuxSharpnessSlider.Orientation = ESleekOrientation.HORIZONTAL;
+			linuxSharpnessSlider.AddLabel("Nitidez RCAS: 20%", ESleekSide.RIGHT);
+			linuxSharpnessSlider.OnValueChanged += onDraggedLinuxSharpnessSlider;
+			graphicsBox.AddChild(linuxSharpnessSlider);
+			verticalOffset += 30;
+			linuxSharpnessSlider.SideLabel.SizeOffset_X += 120;
+
+			linuxDynamicResolutionToggle = Glazier.Get().CreateToggle();
+			linuxDynamicResolutionToggle.PositionOffset_X = 205;
+			linuxDynamicResolutionToggle.PositionOffset_Y = verticalOffset;
+			linuxDynamicResolutionToggle.SizeOffset_X = 40;
+			linuxDynamicResolutionToggle.SizeOffset_Y = 40;
+			linuxDynamicResolutionToggle.AddLabel("Resolução dinâmica", ESleekSide.RIGHT);
+			linuxDynamicResolutionToggle.TooltipText = "Ajusta a escala interna com fallback para renderização original.";
+			linuxDynamicResolutionToggle.OnValueChanged += onToggledLinuxDynamicResolution;
+			graphicsBox.AddChild(linuxDynamicResolutionToggle);
+			verticalOffset += 50;
+
+			linuxMotionAdaptiveToggle = Glazier.Get().CreateToggle();
+			linuxMotionAdaptiveToggle.PositionOffset_X = 205;
+			linuxMotionAdaptiveToggle.PositionOffset_Y = verticalOffset;
+			linuxMotionAdaptiveToggle.SizeOffset_X = 40;
+			linuxMotionAdaptiveToggle.SizeOffset_Y = 40;
+			linuxMotionAdaptiveToggle.AddLabel("Resolução adaptativa por movimento", ESleekSide.RIGHT);
+			linuxMotionAdaptiveToggle.TooltipText = "Reduz gradualmente a escala durante movimentos rápidos da câmera.";
+			linuxMotionAdaptiveToggle.OnValueChanged += onToggledLinuxMotionAdaptive;
+			graphicsBox.AddChild(linuxMotionAdaptiveToggle);
+			verticalOffset += 50;
+
+			linuxLowLatencyToggle = Glazier.Get().CreateToggle();
+			linuxLowLatencyToggle.PositionOffset_X = 205;
+			linuxLowLatencyToggle.PositionOffset_Y = verticalOffset;
+			linuxLowLatencyToggle.SizeOffset_X = 40;
+			linuxLowLatencyToggle.SizeOffset_Y = 40;
+			linuxLowLatencyToggle.AddLabel("Modo de baixa latência", ESleekSide.RIGHT);
+			linuxLowLatencyToggle.OnValueChanged += onToggledLinuxLowLatency;
+			graphicsBox.AddChild(linuxLowLatencyToggle);
+			verticalOffset += 50;
+
+			linuxMemoryProfileButton = new SleekButtonState(new GUIContent("Muito baixo"), new GUIContent("Baixo"), new GUIContent("Equilibrado"), new GUIContent("Automático"));
+			linuxMemoryProfileButton.PositionOffset_X = 205;
+			linuxMemoryProfileButton.PositionOffset_Y = verticalOffset;
+			linuxMemoryProfileButton.SizeOffset_X = 200;
+			linuxMemoryProfileButton.SizeOffset_Y = 30;
+			linuxMemoryProfileButton.AddLabel("Perfil de memória", ESleekSide.RIGHT);
+			linuxMemoryProfileButton.onSwappedState = onSwappedLinuxMemoryProfile;
+			graphicsBox.AddChild(linuxMemoryProfileButton);
+			verticalOffset += 40;
+
+			linuxCullingProfileButton = new SleekButtonState(new GUIContent("Original"), new GUIContent("Básico"), new GUIContent("Agressivo"), new GUIContent("Experimental"));
+			linuxCullingProfileButton.PositionOffset_X = 205;
+			linuxCullingProfileButton.PositionOffset_Y = verticalOffset;
+			linuxCullingProfileButton.SizeOffset_X = 200;
+			linuxCullingProfileButton.SizeOffset_Y = 30;
+			linuxCullingProfileButton.AddLabel("Perfil de culling", ESleekSide.RIGHT);
+			linuxCullingProfileButton.onSwappedState = onSwappedLinuxCullingProfile;
+			graphicsBox.AddChild(linuxCullingProfileButton);
+			verticalOffset += 40;
+
+			linuxDebugOverlayToggle = Glazier.Get().CreateToggle();
+			linuxDebugOverlayToggle.PositionOffset_X = 205;
+			linuxDebugOverlayToggle.PositionOffset_Y = verticalOffset;
+			linuxDebugOverlayToggle.SizeOffset_X = 40;
+			linuxDebugOverlayToggle.SizeOffset_Y = 40;
+			linuxDebugOverlayToggle.AddLabel("Overlay de depuração", ESleekSide.RIGHT);
+			linuxDebugOverlayToggle.OnValueChanged += onToggledLinuxDebugOverlay;
+			graphicsBox.AddChild(linuxDebugOverlayToggle);
+			verticalOffset += 50;
 
 			graphicsBox.ContentSizeOffset = new Vector2(0.0f, verticalOffset - 10);
 

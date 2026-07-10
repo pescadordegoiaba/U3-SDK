@@ -5,6 +5,7 @@
 using System.Collections;
 using System.Runtime.CompilerServices;
 using UnityEngine;
+using SDG.Unturned.LinuxPerformance;
 
 namespace SDG.Unturned
 {
@@ -112,6 +113,7 @@ namespace SDG.Unturned
 			StartCoroutine(activate());
 
 			UnturnedPostProcess.instance.setBaseCamera(instance);
+			LinuxPerformanceBootstrap.GetOrCreate(gameObject);
 			gameObject.GetOrAddComponent<SDG.Framework.Rendering.GLRenderer>();
 		}
 

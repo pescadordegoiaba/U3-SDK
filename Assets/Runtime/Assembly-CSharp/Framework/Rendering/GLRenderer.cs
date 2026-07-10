@@ -3,6 +3,7 @@
 // Please refer to the included LICENSE.txt for copyright notice and license details. //
 ////////////////////////////////////////////////////////////////////////////////////////
 using SDG.Unturned;
+using SDG.Unturned.LinuxPerformance;
 using System;
 using UnityEngine;
 
@@ -15,10 +16,20 @@ namespace SDG.Framework.Rendering
 		public static event GLRenderHandler render;
 		public static event GLRenderHandler OnGameRender;
 
+		private Camera cachedCamera;
+
+		private void Awake()
+		{
+			cachedCamera = GetComponent<Camera>();
+		}
+
 		private void OnRenderImage(RenderTexture source, RenderTexture destination)
 		{
 			// Blit must always be called.
-			Graphics.Blit(source, destination);
+			if (cachedCamera != MainCamera.instance || !UpscalerManager.Render(source, destination))
+			{
+				Graphics.Blit(source, destination);
+			}
 
 			bool shouldRenderAny = false;
 			bool shouldInvokeRenderEvent = false;
