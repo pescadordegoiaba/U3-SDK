@@ -128,6 +128,11 @@ namespace SDG.Unturned
 
 			foreach (CustomMenuLink customMenuLink in Provider.statusData.Menu.Custom_Menu_Links)
 			{
+				if (customMenuLink == null || string.IsNullOrEmpty(customMenuLink.Icon) || string.IsNullOrEmpty(customMenuLink.Label_Key))
+				{
+					continue;
+				}
+
 				CustomMenuLinkButton supportButton = new CustomMenuLinkButton(icons.load<Texture2D>(customMenuLink.Icon), 40);
 				supportButton.PositionOffset_X = -100;
 				supportButton.PositionOffset_Y = offset;

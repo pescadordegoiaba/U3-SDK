@@ -6552,6 +6552,7 @@ namespace SDG.Unturned
 			{
 				_statusData = new StatusData();
 			}
+			_statusData.EnsureDefaults();
 			_modInfo = LoadModInfo();
 			HolidayUtil.scheduleHolidays(statusData.Holidays);
 

@@ -25,6 +25,43 @@ namespace SDG.Unturned
 			News = new NewsStatusData();
 			Maps = new MapsStatusData();
 		}
+
+		public void EnsureDefaults()
+		{
+			if (Achievements == null)
+			{
+				Achievements = new AchievementStatusData();
+			}
+			Achievements.EnsureDefaults();
+
+			if (Game == null)
+			{
+				Game = new GameStatusData();
+			}
+			Game.EnsureDefaults();
+
+			if (Holidays == null)
+			{
+				Holidays = new HolidayStatusData();
+			}
+
+			if (Menu == null)
+			{
+				Menu = new MenuStatusData();
+			}
+			Menu.EnsureDefaults();
+
+			if (News == null)
+			{
+				News = new NewsStatusData();
+			}
+
+			if (Maps == null)
+			{
+				Maps = new MapsStatusData();
+			}
+			Maps.EnsureDefaults();
+		}
 	}
 
 	public class AchievementStatusData
@@ -33,6 +70,19 @@ namespace SDG.Unturned
 		/// Names of achievements that can be granted by NPC rewards.
 		/// </summary>
 		public string[] NPC_Achievement_IDs;
+
+		public AchievementStatusData()
+		{
+			NPC_Achievement_IDs = Array.Empty<string>();
+		}
+
+		public void EnsureDefaults()
+		{
+			if (NPC_Achievement_IDs == null)
+			{
+				NPC_Achievement_IDs = Array.Empty<string>();
+			}
+		}
 
 		public bool canBeGrantedByNPC(string id)
 		{
@@ -59,10 +109,30 @@ namespace SDG.Unturned
 			return string.Format("3.{0}.{1}.{2}", Major_Version, Minor_Version, Patch_Version);
 		}
 
-#if WITH_GRANTPACKAGE_PROMO
+	#if WITH_GRANTPACKAGE_PROMO
 		public int[] GrantPackageIDs;
 		public string GrantPackageURL;
-#endif // WITH_GRANTPACKAGE_PROMO
+	#endif // WITH_GRANTPACKAGE_PROMO
+
+		public GameStatusData()
+		{
+			EnsureDefaults();
+		}
+
+		public void EnsureDefaults()
+		{
+	#if WITH_GRANTPACKAGE_PROMO
+			if (GrantPackageIDs == null)
+			{
+				GrantPackageIDs = Array.Empty<int>();
+			}
+
+			if (GrantPackageURL == null)
+			{
+				GrantPackageURL = string.Empty;
+			}
+	#endif // WITH_GRANTPACKAGE_PROMO
+		}
 	}
 
 	public class HolidayStatusData
@@ -100,7 +170,20 @@ namespace SDG.Unturned
 		/// <summary>
 		/// Allows modders to override which links are shown in the main menu escape menu.
 		/// </summary>
-		public List<CustomMenuLink> Custom_Menu_Links; 
+		public List<CustomMenuLink> Custom_Menu_Links;
+
+		public MenuStatusData()
+		{
+			Custom_Menu_Links = new List<CustomMenuLink>();
+		}
+
+		public void EnsureDefaults()
+		{
+			if (Custom_Menu_Links == null)
+			{
+				Custom_Menu_Links = new List<CustomMenuLink>();
+			}
+		}
 	}
 
 	public class NewsStatusData
@@ -181,6 +264,24 @@ namespace SDG.Unturned
 			Curated_Map_Links = new List<CuratedMapLink>();
 			Auto_Subscribe = new List<AutoSubscribeMap>();
 			Auto_Unsubscribe = new List<ulong>();
+		}
+
+		public void EnsureDefaults()
+		{
+			if (Curated_Map_Links == null)
+			{
+				Curated_Map_Links = new List<CuratedMapLink>();
+			}
+
+			if (Auto_Subscribe == null)
+			{
+				Auto_Subscribe = new List<AutoSubscribeMap>();
+			}
+
+			if (Auto_Unsubscribe == null)
+			{
+				Auto_Unsubscribe = new List<ulong>();
+			}
 		}
 	}
 }
