@@ -25,20 +25,26 @@ namespace SDG.Framework.Rendering
 
 		private void OnRenderImage(RenderTexture source, RenderTexture destination)
 		{
+			bool isMainCamera = cachedCamera == MainCamera.instance;
+			RenderTexture presentationTarget = null;
+			bool isLowResolutionPath = isMainCamera && LowResolutionWorldRenderer.TryGetPresentationTarget(cachedCamera, source, out presentationTarget);
 			if (cachedCamera == MainCamera.instance)
 			{
-				PerformanceSettingsCache.NotifyResolutionChanged(destination.width, destination.height);
-				if (LinuxPerformanceRuntime.IsNativeFastPath)
+				int outputWidth = isLowResolutionPath && LowResolutionWorldRenderer.Instance != null ? LowResolutionWorldRenderer.Instance.OutputWidth : destination.width;
+				int outputHeight = isLowResolutionPath && LowResolutionWorldRenderer.Instance != null ? LowResolutionWorldRenderer.Instance.OutputHeight : destination.height;
+				PerformanceSettingsCache.NotifyResolutionChanged(outputWidth, outputHeight);
+				if (!isLowResolutionPath && LinuxPerformanceRuntime.IsNativeFastPath)
 				{
 					Graphics.Blit(source, destination);
 					return;
 				}
 			}
 
+			RenderTexture finalTarget = isLowResolutionPath ? presentationTarget : destination;
 			// Blit must always be called.
-			if (cachedCamera != MainCamera.instance || !UpscalerManager.Render(source, destination))
+			if (!isMainCamera || finalTarget == null || !UpscalerManager.Render(source, finalTarget))
 			{
-				Graphics.Blit(source, destination);
+				Graphics.Blit(source, finalTarget);
 			}
 
 			bool shouldRenderAny = false;
@@ -74,7 +80,7 @@ namespace SDG.Framework.Rendering
 
 			if (shouldRenderAny)
 			{
-				RenderTexture.active = destination;
+				RenderTexture.active = finalTarget;
 
 				if (shouldInvokeRenderEvent)
 				{
@@ -119,6 +125,12 @@ namespace SDG.Framework.Rendering
 				}
 
 				RenderTexture.active = null;
+			}
+
+			if (isLowResolutionPath)
+			{
+				LowResolutionWorldRenderer.Present(finalTarget);
+				LowResolutionWorldRenderer.CompleteFrame(cachedCamera);
 			}
 		}
 	}

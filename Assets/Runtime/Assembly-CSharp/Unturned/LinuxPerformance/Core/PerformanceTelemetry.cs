@@ -67,12 +67,17 @@ namespace SDG.Unturned.LinuxPerformance
 					monoUsedBytes = Profiler.GetMonoUsedSizeLong();
 				}
 
+				LowResolutionWorldRenderer lowResolutionRenderer = LowResolutionWorldRenderer.Instance;
+				int actualInternalWidth = lowResolutionRenderer != null && lowResolutionRenderer.IsActiveThisFrame && lowResolutionRenderer.SceneColorLowRes != null ? lowResolutionRenderer.SceneColorLowRes.width : DynamicResolutionController.InternalWidth;
+				int actualInternalHeight = lowResolutionRenderer != null && lowResolutionRenderer.IsActiveThisFrame && lowResolutionRenderer.SceneColorLowRes != null ? lowResolutionRenderer.SceneColorLowRes.height : DynamicResolutionController.InternalHeight;
+				int actualOutputWidth = lowResolutionRenderer != null && lowResolutionRenderer.IsActiveThisFrame && lowResolutionRenderer.UpscaledColor != null ? lowResolutionRenderer.UpscaledColor.width : Screen.width;
+				int actualOutputHeight = lowResolutionRenderer != null && lowResolutionRenderer.IsActiveThisFrame && lowResolutionRenderer.UpscaledColor != null ? lowResolutionRenderer.UpscaledColor.height : Screen.height;
 				LastFrame = new FrameSnapshot()
 				{
-					ScreenWidth = Screen.width,
-					ScreenHeight = Screen.height,
-					InternalWidth = DynamicResolutionController.InternalWidth,
-					InternalHeight = DynamicResolutionController.InternalHeight,
+					ScreenWidth = actualOutputWidth,
+					ScreenHeight = actualOutputHeight,
+					InternalWidth = actualInternalWidth,
+					InternalHeight = actualInternalHeight,
 					DeltaTime = Time.unscaledDeltaTime,
 					MainThreadMs = mainThreadMs,
 					RenderThreadMs = renderThreadMs,

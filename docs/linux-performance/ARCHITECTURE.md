@@ -21,3 +21,9 @@ Objetos interativos, rubble/destrutíveis, NPCs, objetos de missão ou rede, tri
 O budget inicial é de 32 transições de visibilidade por `LevelObject`, 16 mudanças de sombra e 8 mudanças para cada grupo de luz, partícula e animator. O limite de 32 não representa renderers individuais: um `LevelObject` pode controlar vários renderers de forma atômica. Itens enfileirados usam generation para invalidar mudanças obsoletas quando o estado desejado se inverte.
 
 Selecionar `Original`, entrar em modo cinematográfico, trocar mapa ou destruir o controlador restaura os estados capturados. A restauração é idempotente e respeita a composição de visibilidade já existente em `LevelObject`, incluindo região, condições e `CullingVolume`.
+
+## Renderização explícita em baixa resolução
+
+`LowResolutionWorldRenderer` existe somente na `MainCamera`. Quando a escala é menor que 1,0 ele configura buffers persistentes separados para `SceneColorLowRes` e `SceneDepthLowRes`, renderiza o mundo nessas dimensões e fornece um `UpscaledColor` no tamanho real do backbuffer. `GLRenderer` executa o backend/fallback nesse target nativo, desenha seus eventos GL depois do upscale e finalmente apresenta no backbuffer. UI `ScreenSpaceOverlay`, mira, textos e `OnGUI` continuam sendo compostos posteriormente pela Unity em resolução nativa.
+
+Minimapa, reflexões e câmeras secundárias não recebem o componente nem passam pelo fluxo. Os targets só são recriados quando resolução, escala, HDR/formato ou descriptor mudam. Escala 1,0 mantém o caminho nativo; falha de criação ou divergência nas dimensões reais do source usa blit direto ao backbuffer.

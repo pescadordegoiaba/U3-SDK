@@ -20,6 +20,8 @@ namespace SDG.Unturned.LinuxPerformance
 				host.AddComponent<PerformanceTelemetry>();
 			if (host.GetComponent<TemporalCameraController>() == null)
 				host.AddComponent<TemporalCameraController>();
+			if (host.GetComponent<LowResolutionWorldRenderer>() == null)
+				host.AddComponent<LowResolutionWorldRenderer>();
 			return bootstrap;
 		}
 
@@ -111,6 +113,7 @@ namespace SDG.Unturned.LinuxPerformance
 			Level.onLevelExited -= OnLevelExited;
 			PerformanceSettingsCache.Invalidate("Plugin destruído");
 			VisibilityBudgetManager.RestoreAll();
+			LowResolutionWorldRenderer.ReleaseAll();
 			UpscalerManager.Release();
 		}
 

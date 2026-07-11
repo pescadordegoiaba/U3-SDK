@@ -549,6 +549,45 @@ namespace SDG.Unturned.Tests
 			RenderTargetPool.Clear();
 		}
 
+		[TestCase(1.0f, 1280, 1024)]
+		[TestCase(0.77f, 986, 788)]
+		[TestCase(0.6667f, 854, 683)]
+		[TestCase(0.625f, 800, 640)]
+		public void LowResolutionWorldRendererCalculatesExpectedTargets(float scale, int expectedWidth, int expectedHeight)
+		{
+			LowResolutionWorldRenderer.CalculateDimensions(1280, 1024, scale, out int width, out int height);
+			Assert.AreEqual(expectedWidth, width);
+			Assert.AreEqual(expectedHeight, height);
+		}
+
+		[Test]
+		public void LowResolutionWorldRendererReusesTargetsUntilDescriptorChanges()
+		{
+			GameObject gameObject = new GameObject("LowResolutionWorldRendererTest");
+			try
+			{
+				gameObject.AddComponent<Camera>();
+				LowResolutionWorldRenderer renderer = gameObject.AddComponent<LowResolutionWorldRenderer>();
+				Assert.IsTrue(InvokeEnsureTargets(renderer, 800, 640, 1280, 1024, RenderTextureFormat.ARGB32));
+				RenderTexture firstColor = renderer.SceneColorLowRes;
+				RenderTexture firstDepth = renderer.SceneDepthLowRes;
+				RenderTexture firstOutput = renderer.UpscaledColor;
+				Assert.IsTrue(InvokeEnsureTargets(renderer, 800, 640, 1280, 1024, RenderTextureFormat.ARGB32));
+				Assert.AreSame(firstColor, renderer.SceneColorLowRes);
+				Assert.AreSame(firstDepth, renderer.SceneDepthLowRes);
+				Assert.AreSame(firstOutput, renderer.UpscaledColor);
+
+				Assert.IsTrue(InvokeEnsureTargets(renderer, 854, 683, 1280, 1024, RenderTextureFormat.ARGB32));
+				Assert.AreNotSame(firstColor, renderer.SceneColorLowRes);
+				Assert.AreEqual(854, renderer.SceneColorLowRes.width);
+				Assert.AreEqual(683, renderer.SceneColorLowRes.height);
+			}
+			finally
+			{
+				Object.DestroyImmediate(gameObject);
+			}
+		}
+
 		private static void InvokeUnityMessage(object target, string methodName)
 		{
 			MethodInfo method = target.GetType().GetMethod(methodName, BindingFlags.Instance | BindingFlags.NonPublic);
@@ -576,6 +615,13 @@ namespace SDG.Unturned.Tests
 			SetPrivateField(levelObject, "<isVisibleInCullingVolume>k__BackingField", true);
 			SetPrivateField(levelObject, "<isVisibleByGameplayBudget>k__BackingField", true);
 			return levelObject;
+		}
+
+		private static bool InvokeEnsureTargets(LowResolutionWorldRenderer renderer, int renderWidth, int renderHeight, int outputWidth, int outputHeight, RenderTextureFormat format)
+		{
+			MethodInfo method = typeof(LowResolutionWorldRenderer).GetMethod("EnsureTargets", BindingFlags.Instance | BindingFlags.NonPublic);
+			Assert.IsNotNull(method);
+			return (bool)method.Invoke(renderer, new object[] { renderWidth, renderHeight, outputWidth, outputHeight, format });
 		}
 	}
 }
