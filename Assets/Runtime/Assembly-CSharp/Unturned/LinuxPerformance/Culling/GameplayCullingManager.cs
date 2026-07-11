@@ -62,7 +62,8 @@ namespace SDG.Unturned.LinuxPerformance
 
 	internal struct CullingWorkBudget
 	{
-		public int Renderers;
+		/// <summary>LevelObject visibility transitions, not individual Renderer components.</summary>
+		public int ObjectVisibilityChanges;
 		public int Shadows;
 		public int Lights;
 		public int Particles;
@@ -72,7 +73,7 @@ namespace SDG.Unturned.LinuxPerformance
 		{
 			return new CullingWorkBudget()
 			{
-				Renderers = 32,
+				ObjectVisibilityChanges = 32,
 				Shadows = 16,
 				Lights = 8,
 				Particles = 8,

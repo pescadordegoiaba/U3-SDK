@@ -2,6 +2,7 @@
 // This file is part of the U3 SDK: https://github.com/smartlydressedgames/u3-sdk/    //
 // Please refer to the included LICENSE.txt for copyright notice and license details. //
 ////////////////////////////////////////////////////////////////////////////////////////
+using System.Collections.Generic;
 using System.Reflection;
 using System.Runtime.Serialization;
 using NUnit.Framework;
@@ -194,7 +195,7 @@ namespace SDG.Unturned.Tests
 		public void GameplayCullingBudgetMatchesInitialLimits()
 		{
 			CullingWorkBudget budget = CullingWorkBudget.CreateDefault();
-			Assert.AreEqual(32, budget.Renderers);
+			Assert.AreEqual(32, budget.ObjectVisibilityChanges);
 			Assert.AreEqual(16, budget.Shadows);
 			Assert.AreEqual(8, budget.Lights);
 			Assert.AreEqual(8, budget.Particles);
@@ -232,10 +233,7 @@ namespace SDG.Unturned.Tests
 				Animator animator = gameObject.AddComponent<Animator>();
 				animator.enabled = true;
 
-				LevelObject levelObject = (LevelObject)FormatterServices.GetUninitializedObject(typeof(LevelObject));
-				SetPrivateField(levelObject, "_transform", gameObject.transform);
-				SetPrivateField(levelObject, "areConditionsMet", true);
-				SetPrivateField(levelObject, "<isActiveInRegion>k__BackingField", true);
+				LevelObject levelObject = CreateValidLevelObjectTestDouble(gameObject);
 				CullingEntry entry = new CullingEntry(levelObject);
 				entry.DesiredVisible = false;
 				CullingWorkBudget budget = CullingWorkBudget.CreateDefault();
@@ -244,7 +242,7 @@ namespace SDG.Unturned.Tests
 				Assert.AreEqual(UnityEngine.Rendering.ShadowCastingMode.Off, renderer.shadowCastingMode);
 				Assert.IsFalse(light.enabled);
 				Assert.IsFalse(animator.enabled);
-				Assert.AreEqual(31, budget.Renderers);
+				Assert.AreEqual(31, budget.ObjectVisibilityChanges);
 				Assert.AreEqual(15, budget.Shadows);
 				Assert.AreEqual(7, budget.Lights);
 				Assert.AreEqual(7, budget.Animators);
@@ -259,6 +257,193 @@ namespace SDG.Unturned.Tests
 			finally
 			{
 				Object.DestroyImmediate(gameObject);
+			}
+		}
+
+		[Test]
+		public void GameplayCullingRestoreIsIdempotent()
+		{
+			GameObject gameObject = new GameObject("CullingIdempotentRestoreTest");
+			try
+			{
+				MeshRenderer renderer = gameObject.AddComponent<MeshRenderer>();
+				renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.TwoSided;
+				CullingEntry entry = new CullingEntry(CreateValidLevelObjectTestDouble(gameObject));
+				entry.DesiredVisible = false;
+				CullingWorkBudget budget = CullingWorkBudget.CreateDefault();
+				entry.ApplyIncrementally(ref budget);
+				entry.RestoreImmediately();
+				entry.RestoreImmediately();
+				Assert.IsTrue(renderer.enabled);
+				Assert.AreEqual(UnityEngine.Rendering.ShadowCastingMode.TwoSided, renderer.shadowCastingMode);
+			}
+			finally
+			{
+				Object.DestroyImmediate(gameObject);
+			}
+		}
+
+		[Test]
+		public void GameplayCullingRestoreToleratesDestroyedLight()
+		{
+			GameObject gameObject = new GameObject("CullingDestroyedLightTest");
+			try
+			{
+				gameObject.AddComponent<MeshRenderer>();
+				Light light = gameObject.AddComponent<Light>();
+				CullingEntry entry = new CullingEntry(CreateValidLevelObjectTestDouble(gameObject));
+				entry.DesiredVisible = false;
+				CullingWorkBudget budget = CullingWorkBudget.CreateDefault();
+				entry.ApplyIncrementally(ref budget);
+				Object.DestroyImmediate(light);
+				Assert.DoesNotThrow(() => entry.RestoreImmediately());
+			}
+			finally
+			{
+				Object.DestroyImmediate(gameObject);
+			}
+		}
+
+		[Test]
+		public void GameplayCullingRestoreToleratesDestroyedRenderer()
+		{
+			GameObject gameObject = new GameObject("CullingDestroyedRendererTest");
+			try
+			{
+				MeshRenderer renderer = gameObject.AddComponent<MeshRenderer>();
+				CullingEntry entry = new CullingEntry(CreateValidLevelObjectTestDouble(gameObject));
+				entry.DesiredVisible = false;
+				CullingWorkBudget budget = CullingWorkBudget.CreateDefault();
+				entry.ApplyIncrementally(ref budget);
+				Object.DestroyImmediate(renderer);
+				Assert.DoesNotThrow(() => entry.RestoreImmediately());
+			}
+			finally
+			{
+				Object.DestroyImmediate(gameObject);
+			}
+		}
+
+		[Test]
+		public void GameplayCullingEntryWithoutParticlesRestores()
+		{
+			GameObject gameObject = new GameObject("CullingNoParticlesTest");
+			try
+			{
+				gameObject.AddComponent<MeshRenderer>();
+				CullingEntry entry = new CullingEntry(CreateValidLevelObjectTestDouble(gameObject));
+				Assert.AreEqual(0, entry.Particles.Count);
+				entry.DesiredVisible = false;
+				CullingWorkBudget budget = CullingWorkBudget.CreateDefault();
+				Assert.IsTrue(entry.ApplyIncrementally(ref budget));
+				Assert.DoesNotThrow(() => entry.RestoreImmediately());
+			}
+			finally
+			{
+				Object.DestroyImmediate(gameObject);
+			}
+		}
+
+		[Test]
+		public void GameplayCullingRapidVisibilityChangeInvalidatesStaleHide()
+		{
+			GameObject gameObject = new GameObject("CullingRapidChangeTest");
+			try
+			{
+				MeshRenderer renderer = gameObject.AddComponent<MeshRenderer>();
+				CullingEntry entry = new CullingEntry(CreateValidLevelObjectTestDouble(gameObject));
+				VisibilityBudgetManager.RestoreAll();
+				entry.DesiredVisible = false;
+				VisibilityBudgetManager.Queue(entry);
+				entry.DesiredVisible = true;
+				VisibilityBudgetManager.Queue(entry);
+				VisibilityBudgetManager.ProcessQueuedChanges();
+				Assert.IsTrue(renderer.enabled);
+				Assert.IsTrue(entry.AppliedVisible);
+				Assert.IsFalse(entry.IsQueued);
+				Assert.AreEqual(0, VisibilityBudgetManager.PendingQueueCount);
+			}
+			finally
+			{
+				VisibilityBudgetManager.RestoreAll();
+				Object.DestroyImmediate(gameObject);
+			}
+		}
+
+		[Test]
+		public void GameplayCullingOriginalProfileRestoresRegisteredObject()
+		{
+			GameObject gameObject = new GameObject("CullingOriginalProfileTest");
+			try
+			{
+				MeshRenderer renderer = gameObject.AddComponent<MeshRenderer>();
+				LevelObject levelObject = CreateValidLevelObjectTestDouble(gameObject);
+				VisibilityBudgetManager.Clear();
+				VisibilityBudgetManager.Register(levelObject);
+				PerformanceSettings aggressive = new PerformanceSettings() { CullingProfile = ELinuxCullingProfile.Agressivo };
+				VisibilityBudgetManager.Apply(null, aggressive);
+				Assert.IsTrue(VisibilityBudgetManager.TryGetEntry(levelObject, out CullingEntry entry));
+				entry.DesiredVisible = false;
+				CullingWorkBudget budget = CullingWorkBudget.CreateDefault();
+				entry.ApplyIncrementally(ref budget);
+				Assert.IsFalse(renderer.enabled);
+
+				PerformanceSettings original = new PerformanceSettings() { CullingProfile = ELinuxCullingProfile.Original };
+				VisibilityBudgetManager.Apply(null, original);
+				Assert.IsTrue(renderer.enabled);
+				Assert.IsTrue(levelObject.isVisibleByGameplayBudget);
+			}
+			finally
+			{
+				VisibilityBudgetManager.Clear();
+				Object.DestroyImmediate(gameObject);
+			}
+		}
+
+		[Test]
+		public void GameplayCullingCriticalEntryNeverQueuesForHide()
+		{
+			GameObject gameObject = new GameObject("CullingCriticalQueueTest");
+			try
+			{
+				gameObject.AddComponent<MeshRenderer>();
+				CullingEntry entry = new CullingEntry(CreateValidLevelObjectTestDouble(gameObject));
+				entry.Category = GameplayCullableCategory.NeverCull;
+				VisibilityBudgetManager.RestoreAll();
+				VisibilityBudgetManager.EvaluateAndQueue(entry, new Vector3(10000.0f, 0.0f, 10000.0f), ELinuxCullingProfile.Agressivo);
+				Assert.IsTrue(entry.DesiredVisible);
+				Assert.IsFalse(entry.IsQueued);
+				Assert.AreEqual(0, VisibilityBudgetManager.PendingQueueCount);
+			}
+			finally
+			{
+				VisibilityBudgetManager.RestoreAll();
+				Object.DestroyImmediate(gameObject);
+			}
+		}
+
+		[Test]
+		public void GameplayCullingMultipleRenderersConsumesOneObjectVisibilityChange()
+		{
+			GameObject root = new GameObject("CullingMultipleRenderersTest");
+			GameObject child = new GameObject("ChildRenderer");
+			child.transform.SetParent(root.transform, false);
+			try
+			{
+				MeshRenderer first = root.AddComponent<MeshRenderer>();
+				MeshRenderer second = child.AddComponent<MeshRenderer>();
+				CullingEntry entry = new CullingEntry(CreateValidLevelObjectTestDouble(root));
+				entry.DesiredVisible = false;
+				CullingWorkBudget budget = CullingWorkBudget.CreateDefault();
+				Assert.IsTrue(entry.ApplyIncrementally(ref budget));
+				Assert.IsFalse(first.enabled);
+				Assert.IsFalse(second.enabled);
+				Assert.AreEqual(31, budget.ObjectVisibilityChanges);
+				Assert.AreEqual(14, budget.Shadows);
+			}
+			finally
+			{
+				Object.DestroyImmediate(root);
 			}
 		}
 
@@ -376,6 +561,21 @@ namespace SDG.Unturned.Tests
 			FieldInfo field = target.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
 			Assert.IsNotNull(field, fieldName);
 			field.SetValue(target, value);
+		}
+
+		private static LevelObject CreateValidLevelObjectTestDouble(GameObject gameObject)
+		{
+			LevelObject levelObject = (LevelObject)FormatterServices.GetUninitializedObject(typeof(LevelObject));
+			List<Renderer> renderers = new List<Renderer>();
+			gameObject.GetComponentsInChildren(true, renderers);
+			SetPrivateField(levelObject, "_transform", gameObject.transform);
+			SetPrivateField(levelObject, "renderers", renderers);
+			SetPrivateField(levelObject, "areRenderersEnabled", true);
+			SetPrivateField(levelObject, "areConditionsMet", true);
+			SetPrivateField(levelObject, "<isActiveInRegion>k__BackingField", true);
+			SetPrivateField(levelObject, "<isVisibleInCullingVolume>k__BackingField", true);
+			SetPrivateField(levelObject, "<isVisibleByGameplayBudget>k__BackingField", true);
+			return levelObject;
 		}
 	}
 }

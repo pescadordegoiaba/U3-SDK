@@ -130,6 +130,8 @@ namespace SDG.Unturned.LinuxPerformance
 
 		public static void CaptureSceneMetrics()
 		{
+			if (!PerformanceSettingsCache.Current.DebugOverlay)
+				return;
 			if (Time.unscaledTime < nextDetailedMetricsTime)
 				return;
 			nextDetailedMetricsTime = Time.unscaledTime + 0.5f;
@@ -200,7 +202,7 @@ namespace SDG.Unturned.LinuxPerformance
 			}
 		}
 
-		private static void EvaluateAndQueue(CullingEntry entry, Vector3 cameraPosition, ELinuxCullingProfile profile)
+		internal static void EvaluateAndQueue(CullingEntry entry, Vector3 cameraPosition, ELinuxCullingProfile profile)
 		{
 			if (entry == null || entry.LevelObject == null || entry.LevelObject.transform == null)
 			{
@@ -219,20 +221,23 @@ namespace SDG.Unturned.LinuxPerformance
 			Queue(entry);
 		}
 
-		private static void Queue(CullingEntry entry)
+		internal static void Queue(CullingEntry entry)
 		{
-			if (entry.IsQueued && !entry.DesiredVisible)
-				return;
+			unchecked
+			{
+				++entry.QueueGeneration;
+			}
 			entry.IsQueued = true;
+			CullingQueueItem item = new CullingQueueItem(entry, entry.QueueGeneration, entry.DesiredVisible);
 			if (entry.DesiredVisible)
-				showQueue.Add(entry);
+				showQueue.Add(item);
 			else if (entry.Category == GameplayCullableCategory.LargeStructure)
-				importantQueue.Add(entry);
+				importantQueue.Add(item);
 			else
-				hideQueue.Add(entry);
+				hideQueue.Add(item);
 		}
 
-		private static void ProcessQueuedChanges()
+		internal static void ProcessQueuedChanges()
 		{
 			CullingWorkBudget budget = CullingWorkBudget.CreateDefault();
 			ProcessQueue(showQueue, ref showQueueIndex, ref budget);
@@ -241,11 +246,17 @@ namespace SDG.Unturned.LinuxPerformance
 			RemoveDestroyedEntries();
 		}
 
-		private static void ProcessQueue(List<CullingEntry> queue, ref int index, ref CullingWorkBudget budget)
+		private static void ProcessQueue(List<CullingQueueItem> queue, ref int index, ref CullingWorkBudget budget)
 		{
 			while (index < queue.Count)
 			{
-				CullingEntry entry = queue[index];
+				CullingQueueItem item = queue[index];
+				CullingEntry entry = item.Entry;
+				if (entry == null || item.Generation != entry.QueueGeneration || item.DesiredVisible != entry.DesiredVisible)
+				{
+					++index;
+					continue;
+				}
 				if (entry == null || entry.LevelObject == null || entry.LevelObject.transform == null)
 				{
 					if (entry != null)
@@ -255,6 +266,8 @@ namespace SDG.Unturned.LinuxPerformance
 				}
 				if (!entry.ApplyIncrementally(ref budget))
 					break;
+				if (item.Generation == entry.QueueGeneration)
+					entry.IsQueued = false;
 				++index;
 			}
 			if (index >= queue.Count)
@@ -316,9 +329,9 @@ namespace SDG.Unturned.LinuxPerformance
 		private static readonly Dictionary<Vector2Int, int> scanIndices = new Dictionary<Vector2Int, int>();
 		private static readonly RegionIncrementalVisibilityTracker regionTracker = new RegionIncrementalVisibilityTracker();
 		private static readonly Dictionary<Vector2Int, RegionVisibilityData> regionChanges = new Dictionary<Vector2Int, RegionVisibilityData>();
-		private static readonly List<CullingEntry> showQueue = new List<CullingEntry>();
-		private static readonly List<CullingEntry> importantQueue = new List<CullingEntry>();
-		private static readonly List<CullingEntry> hideQueue = new List<CullingEntry>();
+		private static readonly List<CullingQueueItem> showQueue = new List<CullingQueueItem>();
+		private static readonly List<CullingQueueItem> importantQueue = new List<CullingQueueItem>();
+		private static readonly List<CullingQueueItem> hideQueue = new List<CullingQueueItem>();
 		private static readonly List<CullingEntry> destroyedEntries = new List<CullingEntry>();
 		private static readonly Plane[] frustumPlanes = new Plane[6];
 		private static ELinuxCullingProfile activeProfile = ELinuxCullingProfile.Original;
@@ -327,6 +340,27 @@ namespace SDG.Unturned.LinuxPerformance
 		private static int importantQueueIndex;
 		private static int hideQueueIndex;
 		private static float nextDetailedMetricsTime;
+
+		internal static int PendingQueueCount => showQueue.Count - showQueueIndex + importantQueue.Count - importantQueueIndex + hideQueue.Count - hideQueueIndex;
+
+		internal static bool TryGetEntry(LevelObject levelObject, out CullingEntry entry)
+		{
+			return entries.TryGetValue(levelObject, out entry);
+		}
+	}
+
+	internal readonly struct CullingQueueItem
+	{
+		public readonly CullingEntry Entry;
+		public readonly uint Generation;
+		public readonly bool DesiredVisible;
+
+		public CullingQueueItem(CullingEntry entry, uint generation, bool desiredVisible)
+		{
+			Entry = entry;
+			Generation = generation;
+			DesiredVisible = desiredVisible;
+		}
 	}
 
 	internal sealed class CullingEntry
@@ -352,6 +386,7 @@ namespace SDG.Unturned.LinuxPerformance
 		public bool DesiredVisible = true;
 		public bool AppliedVisible = true;
 		public bool IsQueued;
+		public uint QueueGeneration;
 
 		public CullingEntry(LevelObject levelObject)
 		{
@@ -455,11 +490,11 @@ namespace SDG.Unturned.LinuxPerformance
 		{
 			if (AppliedVisible != DesiredVisible)
 			{
-				if (budget.Renderers <= 0)
+				if (budget.ObjectVisibilityChanges <= 0)
 					return false;
 				LevelObject.SetIsVisibleByGameplayBudget(DesiredVisible);
 				AppliedVisible = DesiredVisible;
-				--budget.Renderers;
+				--budget.ObjectVisibilityChanges;
 				shadowIndex = lightIndex = particleIndex = animatorIndex = 0;
 			}
 
@@ -505,8 +540,6 @@ namespace SDG.Unturned.LinuxPerformance
 			}
 
 			bool complete = shadowIndex >= Renderers.Count && lightIndex >= Lights.Count && particleIndex >= Particles.Count && animatorIndex >= Animators.Count;
-			if (complete)
-				IsQueued = false;
 			return complete;
 		}
 
@@ -532,6 +565,10 @@ namespace SDG.Unturned.LinuxPerformance
 					Animators[i].enabled = animatorEnabledStates[i];
 			DesiredVisible = AppliedVisible = true;
 			IsQueued = false;
+			unchecked
+			{
+				++QueueGeneration;
+			}
 			shadowIndex = lightIndex = particleIndex = animatorIndex = 0;
 		}
 
