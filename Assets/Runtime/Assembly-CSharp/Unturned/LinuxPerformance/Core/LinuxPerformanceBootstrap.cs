@@ -114,6 +114,8 @@ namespace SDG.Unturned.LinuxPerformance
 			PerformanceSettingsCache.Invalidate("Plugin destruído");
 			VisibilityBudgetManager.RestoreAll();
 			LowResolutionWorldRenderer.ReleaseAll();
+			TemporalDebugViews.Release();
+			TemporalInputCollector.Clear();
 			UpscalerManager.Release();
 		}
 

@@ -15,6 +15,8 @@ namespace SDG.Unturned.LinuxPerformance
 		public RenderTexture SceneColorLowRes => sceneColorLowRes;
 		public RenderTexture SceneDepthLowRes => sceneDepthLowRes;
 		public RenderTexture UpscaledColor => upscaledColor;
+		public RenderTexture MotionVectorsLowRes => motionVectorsLowRes;
+		public RenderTexture ReactiveMaskLowRes => reactiveMaskLowRes;
 		public bool IsActiveThisFrame { get; private set; }
 		public int RenderWidth { get; private set; }
 		public int RenderHeight { get; private set; }
@@ -62,6 +64,20 @@ namespace SDG.Unturned.LinuxPerformance
 				Instance.ResetCameraTarget();
 		}
 
+		public RenderTexture CaptureMotionVectors()
+		{
+			if (!IsActiveThisFrame || motionVectorsLowRes == null)
+				return null;
+			Texture source = Shader.GetGlobalTexture(cameraMotionVectorsTextureId);
+			if (source == null)
+			{
+				MotionVectorValidator.MarkUnavailable("_CameraMotionVectorsTexture não foi fornecida pela câmera Built-in");
+				return null;
+			}
+			Graphics.Blit(source, motionVectorsLowRes);
+			return motionVectorsLowRes;
+		}
+
 		public static void ReleaseAll()
 		{
 			if (Instance != null)
@@ -71,6 +87,7 @@ namespace SDG.Unturned.LinuxPerformance
 		private void Awake()
 		{
 			cameraComponent = GetComponent<Camera>();
+			temporalController = GetComponent<TemporalCameraController>();
 		}
 
 		private void OnEnable()
@@ -135,19 +152,33 @@ namespace SDG.Unturned.LinuxPerformance
 
 		private bool EnsureTargets(int renderWidth, int renderHeight, int outputWidth, int outputHeight, RenderTextureFormat colorFormat)
 		{
-			if (sceneColorLowRes != null && sceneDepthLowRes != null && upscaledColor != null
+			if (sceneColorLowRes != null && sceneDepthLowRes != null && upscaledColor != null && motionVectorsLowRes != null && reactiveMaskLowRes != null
 				&& sceneColorLowRes.width == renderWidth && sceneColorLowRes.height == renderHeight && sceneColorLowRes.format == colorFormat
 				&& sceneDepthLowRes.width == renderWidth && sceneDepthLowRes.height == renderHeight
-				&& upscaledColor.width == outputWidth && upscaledColor.height == outputHeight && upscaledColor.format == colorFormat)
+				&& upscaledColor.width == outputWidth && upscaledColor.height == outputHeight && upscaledColor.format == colorFormat
+				&& motionVectorsLowRes.width == renderWidth && motionVectorsLowRes.height == renderHeight
+				&& reactiveMaskLowRes.width == renderWidth && reactiveMaskLowRes.height == renderHeight)
 				return true;
 
+			bool outputChanged = upscaledColor != null && (upscaledColor.width != outputWidth || upscaledColor.height != outputHeight);
+			bool renderScaleChanged = sceneColorLowRes != null && (sceneColorLowRes.width != renderWidth || sceneColorLowRes.height != renderHeight);
 			ReleaseTargets();
 			sceneColorLowRes = CreateTarget(renderWidth, renderHeight, 0, colorFormat, "LinuxPerformance.SceneColorLowRes");
 			sceneDepthLowRes = CreateTarget(renderWidth, renderHeight, 24, RenderTextureFormat.Depth, "LinuxPerformance.SceneDepthLowRes");
 			upscaledColor = CreateTarget(outputWidth, outputHeight, 0, colorFormat, "LinuxPerformance.UpscaledColor");
-			bool valid = sceneColorLowRes != null && sceneColorLowRes.IsCreated() && sceneDepthLowRes != null && sceneDepthLowRes.IsCreated() && upscaledColor != null && upscaledColor.IsCreated();
+			RenderTextureFormat motionFormat = SystemInfo.SupportsRenderTextureFormat(RenderTextureFormat.RGHalf) ? RenderTextureFormat.RGHalf : RenderTextureFormat.ARGBHalf;
+			RenderTextureFormat maskFormat = SystemInfo.SupportsRenderTextureFormat(RenderTextureFormat.R8) ? RenderTextureFormat.R8 : RenderTextureFormat.ARGB32;
+			motionVectorsLowRes = CreateTarget(renderWidth, renderHeight, 0, motionFormat, "LinuxPerformance.MotionVectorsLowRes");
+			reactiveMaskLowRes = CreateTarget(renderWidth, renderHeight, 0, maskFormat, "LinuxPerformance.ReactiveMaskLowRes");
+			bool valid = sceneColorLowRes != null && sceneColorLowRes.IsCreated() && sceneDepthLowRes != null && sceneDepthLowRes.IsCreated() && upscaledColor != null && upscaledColor.IsCreated() && motionVectorsLowRes != null && motionVectorsLowRes.IsCreated() && reactiveMaskLowRes != null && reactiveMaskLowRes.IsCreated();
 			if (valid)
 			{
+				RenderTexture previous = RenderTexture.active;
+				RenderTexture.active = reactiveMaskLowRes;
+				GL.Clear(false, true, Color.black);
+				RenderTexture.active = previous;
+				if (temporalController != null)
+					temporalController.RequestReset(outputChanged ? TemporalResetReason.ResolutionChanged : (renderScaleChanged ? TemporalResetReason.RenderScaleChanged : TemporalResetReason.BackendChanged));
 				UnturnedLog.info("Linux Performance low-res targets: source={0}x{1}, destination={2}x{3}, formato={4}", renderWidth, renderHeight, outputWidth, outputHeight, colorFormat);
 			}
 			else
@@ -187,6 +218,8 @@ namespace SDG.Unturned.LinuxPerformance
 			DestroyTarget(ref sceneColorLowRes);
 			DestroyTarget(ref sceneDepthLowRes);
 			DestroyTarget(ref upscaledColor);
+			DestroyTarget(ref motionVectorsLowRes);
+			DestroyTarget(ref reactiveMaskLowRes);
 		}
 
 		private static void DestroyTarget(ref RenderTexture target)
@@ -214,6 +247,10 @@ namespace SDG.Unturned.LinuxPerformance
 		private RenderTexture sceneColorLowRes;
 		private RenderTexture sceneDepthLowRes;
 		private RenderTexture upscaledColor;
+		private RenderTexture motionVectorsLowRes;
+		private RenderTexture reactiveMaskLowRes;
+		private TemporalCameraController temporalController;
 		private bool loggedInvalidSource;
+		private static readonly int cameraMotionVectorsTextureId = Shader.PropertyToID("_CameraMotionVectorsTexture");
 	}
 }

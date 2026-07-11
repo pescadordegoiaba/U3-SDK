@@ -588,6 +588,122 @@ namespace SDG.Unturned.Tests
 			}
 		}
 
+		[Test]
+		public void TemporalInputCollectorAcceptsRealMatchingResources()
+		{
+			GameObject gameObject = new GameObject("TemporalInputCollectorTest");
+			RenderTexture color = null;
+			RenderTexture depth = null;
+			RenderTexture motion = null;
+			RenderTexture output = null;
+			try
+			{
+				Camera camera = gameObject.AddComponent<Camera>();
+				color = CreateTestRenderTexture(854, 683, 0, RenderTextureFormat.ARGB32);
+				depth = CreateTestRenderTexture(854, 683, 24, RenderTextureFormat.Depth);
+				motion = CreateTestRenderTexture(854, 683, 0, RenderTextureFormat.RGHalf);
+				output = CreateTestRenderTexture(1280, 1024, 0, RenderTextureFormat.ARGB32);
+				TemporalFrameContext frame = new TemporalFrameContext()
+				{
+					Camera = camera,
+					Color = color,
+					Depth = depth,
+					MotionVectors = motion,
+					Output = output,
+					RenderWidth = 854,
+					RenderHeight = 683,
+					OutputWidth = 1280,
+					OutputHeight = 1024,
+				};
+				Assert.IsTrue(TemporalInputCollector.IsReadyForTemporalUpscaling(frame, out string reason), reason);
+			}
+			finally
+			{
+				DestroyTestRenderTexture(color);
+				DestroyTestRenderTexture(depth);
+				DestroyTestRenderTexture(motion);
+				DestroyTestRenderTexture(output);
+				Object.DestroyImmediate(gameObject);
+			}
+		}
+
+		[Test]
+		public void TemporalInputCollectorRejectsCalculatedDimensionsThatDoNotMatchTextures()
+		{
+			GameObject gameObject = new GameObject("TemporalDimensionMismatchTest");
+			RenderTexture color = null;
+			RenderTexture depth = null;
+			RenderTexture motion = null;
+			RenderTexture output = null;
+			try
+			{
+				Camera camera = gameObject.AddComponent<Camera>();
+				color = CreateTestRenderTexture(800, 640, 0, RenderTextureFormat.ARGB32);
+				depth = CreateTestRenderTexture(800, 640, 24, RenderTextureFormat.Depth);
+				motion = CreateTestRenderTexture(800, 640, 0, RenderTextureFormat.RGHalf);
+				output = CreateTestRenderTexture(1280, 1024, 0, RenderTextureFormat.ARGB32);
+				TemporalFrameContext frame = new TemporalFrameContext()
+				{
+					Camera = camera,
+					Color = color,
+					Depth = depth,
+					MotionVectors = motion,
+					Output = output,
+					RenderWidth = 854,
+					RenderHeight = 683,
+					OutputWidth = 1280,
+					OutputHeight = 1024,
+				};
+				Assert.IsFalse(TemporalInputCollector.IsReadyForTemporalUpscaling(frame, out string reason));
+				StringAssert.Contains("texturas temporais reais", reason);
+			}
+			finally
+			{
+				DestroyTestRenderTexture(color);
+				DestroyTestRenderTexture(depth);
+				DestroyTestRenderTexture(motion);
+				DestroyTestRenderTexture(output);
+				Object.DestroyImmediate(gameObject);
+			}
+		}
+
+		[Test]
+		public void TemporalDebugViewsRenderJitterWithoutMarkingMotionVectorsValidated()
+		{
+			RenderTexture color = CreateTestRenderTexture(64, 64, 0, RenderTextureFormat.ARGB32);
+			RenderTexture output = CreateTestRenderTexture(128, 128, 0, RenderTextureFormat.ARGB32);
+			try
+			{
+				TemporalFrameContext frame = new TemporalFrameContext()
+				{
+					Color = color,
+					Output = output,
+					RenderWidth = 64,
+					RenderHeight = 64,
+					Jitter = new Vector2(0.001f, -0.001f),
+				};
+				TemporalDebugViews.ActiveView = ETemporalDebugView.Jitter;
+				Assert.IsTrue(TemporalDebugViews.Render(frame, output));
+				Assert.AreNotEqual(ELinuxFeatureState.Available, MotionVectorValidator.State);
+				Assert.IsTrue(ReactiveMaskGenerator.IsIncomplete);
+			}
+			finally
+			{
+				TemporalDebugViews.ActiveView = ETemporalDebugView.None;
+				TemporalDebugViews.Release();
+				DestroyTestRenderTexture(color);
+				DestroyTestRenderTexture(output);
+			}
+		}
+
+		[Test]
+		public void TemporalHistoryDetectsAbnormalFrames()
+		{
+			Assert.IsTrue(HistoryResetDetector.IsAbnormalDelta(0.0f));
+			Assert.IsTrue(HistoryResetDetector.IsAbnormalDelta(501.0f));
+			Assert.IsFalse(HistoryResetDetector.IsAbnormalDelta(16.667f));
+		}
+
 		private static void InvokeUnityMessage(object target, string methodName)
 		{
 			MethodInfo method = target.GetType().GetMethod(methodName, BindingFlags.Instance | BindingFlags.NonPublic);
@@ -622,6 +738,21 @@ namespace SDG.Unturned.Tests
 			MethodInfo method = typeof(LowResolutionWorldRenderer).GetMethod("EnsureTargets", BindingFlags.Instance | BindingFlags.NonPublic);
 			Assert.IsNotNull(method);
 			return (bool)method.Invoke(renderer, new object[] { renderWidth, renderHeight, outputWidth, outputHeight, format });
+		}
+
+		private static RenderTexture CreateTestRenderTexture(int width, int height, int depth, RenderTextureFormat format)
+		{
+			RenderTexture target = new RenderTexture(width, height, depth, format);
+			Assert.IsTrue(target.Create());
+			return target;
+		}
+
+		private static void DestroyTestRenderTexture(RenderTexture target)
+		{
+			if (target == null)
+				return;
+			target.Release();
+			Object.DestroyImmediate(target);
 		}
 	}
 }

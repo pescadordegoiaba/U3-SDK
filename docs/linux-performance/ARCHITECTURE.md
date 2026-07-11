@@ -27,3 +27,11 @@ Selecionar `Original`, entrar em modo cinematográfico, trocar mapa ou destruir 
 `LowResolutionWorldRenderer` existe somente na `MainCamera`. Quando a escala é menor que 1,0 ele configura buffers persistentes separados para `SceneColorLowRes` e `SceneDepthLowRes`, renderiza o mundo nessas dimensões e fornece um `UpscaledColor` no tamanho real do backbuffer. `GLRenderer` executa o backend/fallback nesse target nativo, desenha seus eventos GL depois do upscale e finalmente apresenta no backbuffer. UI `ScreenSpaceOverlay`, mira, textos e `OnGUI` continuam sendo compostos posteriormente pela Unity em resolução nativa.
 
 Minimapa, reflexões e câmeras secundárias não recebem o componente nem passam pelo fluxo. Os targets só são recriados quando resolução, escala, HDR/formato ou descriptor mudam. Escala 1,0 mantém o caminho nativo; falha de criação ou divergência nas dimensões reais do source usa blit direto ao backbuffer.
+
+## Entradas temporais
+
+Quando um backend temporal está realmente ativo, `TemporalCameraController` aplica jitter Halton e publica `TemporalFrameContext` depois que o mundo foi renderizado. O contexto referencia o color/source real, `SceneDepthLowRes`, uma cópia persistente de `_CameraMotionVectorsTexture`, reactive mask neutra, output nativo, matrizes atual/anterior, dimensões verificadas pelas próprias texturas, near/far, FOV, HDR e reversed-Z.
+
+Há debug views para depth linearizado, motion vectors RGB/magnitude, jitter e reactive mask. Motion vectors continuam explicitamente **não validados visualmente**: câmera, jogador, arma, animator/skinning, veículo, eixo Y e Vulkan precisam de inspeção no Player gráfico. A reactive mask neutra é funcional como fallback, porém incompleta para transparências, água, fogo e partículas; composition mask permanece nula.
+
+O histórico é invalidado por troca/ativação de backend, câmera, mapa, teleporte, morte/respawn, resize, mudança de escala ou FOV e frame anormal. Esses resets não habilitam FSR2 por si mesmos; `has_fsr2` continua zero enquanto o dispatch nativo não existir e não for validado.

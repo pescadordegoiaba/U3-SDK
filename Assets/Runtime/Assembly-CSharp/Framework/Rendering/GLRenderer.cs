@@ -17,10 +17,12 @@ namespace SDG.Framework.Rendering
 		public static event GLRenderHandler OnGameRender;
 
 		private Camera cachedCamera;
+		private TemporalCameraController temporalController;
 
 		private void Awake()
 		{
 			cachedCamera = GetComponent<Camera>();
+			temporalController = GetComponent<TemporalCameraController>();
 		}
 
 		private void OnRenderImage(RenderTexture source, RenderTexture destination)
@@ -41,11 +43,27 @@ namespace SDG.Framework.Rendering
 			}
 
 			RenderTexture finalTarget = isLowResolutionPath ? presentationTarget : destination;
+			TemporalFrameContext temporalFrame = default(TemporalFrameContext);
+			bool hasTemporalFrame = false;
+			if (isLowResolutionPath && presentationTarget != null && temporalController != null && LowResolutionWorldRenderer.Instance != null)
+			{
+				LowResolutionWorldRenderer lowResolutionRenderer = LowResolutionWorldRenderer.Instance;
+				RenderTexture motionVectors = lowResolutionRenderer.CaptureMotionVectors();
+				hasTemporalFrame = temporalController.TryPopulateFrameResources(source, lowResolutionRenderer.SceneDepthLowRes, motionVectors, lowResolutionRenderer.ReactiveMaskLowRes, presentationTarget, out temporalFrame);
+				if (hasTemporalFrame)
+					TemporalInputCollector.Publish(temporalFrame);
+			}
+			else
+			{
+				TemporalInputCollector.Clear();
+			}
 			// Blit must always be called.
 			if (!isMainCamera || finalTarget == null || !UpscalerManager.Render(source, finalTarget))
 			{
 				Graphics.Blit(source, finalTarget);
 			}
+			if (hasTemporalFrame)
+				TemporalDebugViews.Render(temporalFrame, finalTarget);
 
 			bool shouldRenderAny = false;
 			bool shouldInvokeRenderEvent = false;

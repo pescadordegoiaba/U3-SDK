@@ -6,7 +6,8 @@ namespace SDG.Unturned.LinuxPerformance
 {
 	public static class ReactiveMaskGenerator
 	{
-		public static ELinuxFeatureState State => ELinuxFeatureState.Unsupported;
-		public static string StateReason => "Máscaras reactive/composition dependem da captura opaca/final e backend temporal; ainda não geradas.";
+		public static ELinuxFeatureState State => ELinuxFeatureState.Disabled;
+		public static bool IsIncomplete => true;
+		public static string StateReason => "Reactive mask neutra é fornecida, mas a classificação de transparência/partículas permanece incompleta; composition mask ainda é nula.";
 	}
 }

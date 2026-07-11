@@ -17,6 +17,9 @@ namespace SDG.Unturned.LinuxPerformance
 		FieldOfViewChanged,
 		AbnormalDeltaTime,
 		DeviceChanged,
+		Teleport,
+		Respawn,
+		MapChanged,
 		Manual,
 	}
 

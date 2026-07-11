@@ -18,6 +18,41 @@ namespace SDG.Unturned.LinuxPerformance
 			UpscalerManager.ResetHistory(reason.ToString());
 		}
 
+		public bool TryPopulateFrameResources(RenderTexture color, RenderTexture depth, RenderTexture motionVectors, RenderTexture reactiveMask, RenderTexture output, out TemporalFrameContext frame)
+		{
+			frame = currentFrame;
+			if (!IsTemporalActive || cameraComponent == null || color == null || output == null)
+				return false;
+
+			int renderWidth = color.width;
+			int renderHeight = color.height;
+			int outputWidth = output.width;
+			int outputHeight = output.height;
+			if ((previousRenderWidth > 0 && (previousRenderWidth != renderWidth || previousRenderHeight != renderHeight)))
+				RequestReset(TemporalResetReason.RenderScaleChanged);
+			if ((previousOutputWidth > 0 && (previousOutputWidth != outputWidth || previousOutputHeight != outputHeight)))
+				RequestReset(TemporalResetReason.ResolutionChanged);
+
+			currentFrame.Color = color;
+			currentFrame.Depth = depth;
+			currentFrame.MotionVectors = motionVectors;
+			currentFrame.ReactiveMask = reactiveMask;
+			currentFrame.CompositionMask = null;
+			currentFrame.Output = output;
+			currentFrame.RenderWidth = renderWidth;
+			currentFrame.RenderHeight = renderHeight;
+			currentFrame.OutputWidth = outputWidth;
+			currentFrame.OutputHeight = outputHeight;
+			currentFrame.MotionVectorScale = new Vector2(renderWidth, SystemInfo.graphicsUVStartsAtTop ? -renderHeight : renderHeight);
+			currentFrame.ResetHistory |= pendingReset;
+			previousRenderWidth = renderWidth;
+			previousRenderHeight = renderHeight;
+			previousOutputWidth = outputWidth;
+			previousOutputHeight = outputHeight;
+			frame = currentFrame;
+			return true;
+		}
+
 		private void Awake()
 		{
 			cameraComponent = GetComponent<Camera>();
@@ -33,17 +68,29 @@ namespace SDG.Unturned.LinuxPerformance
 				previousViewProjection = Matrix4x4.identity;
 			}
 			MainCamera.instanceChanged += OnMainCameraInstanceChanged;
+			Level.onLevelLoaded += OnLevelLoaded;
+			Player.onPlayerCreated += OnPlayerCreated;
+			BindLocalPlayer(Player.LocalPlayer);
 		}
 
 		private void OnDestroy()
 		{
 			MainCamera.instanceChanged -= OnMainCameraInstanceChanged;
+			Level.onLevelLoaded -= OnLevelLoaded;
+			Player.onPlayerCreated -= OnPlayerCreated;
+			UnbindLocalPlayer();
 		}
 
 		private void OnPreCull()
 		{
 			didApplyJitterThisFrame = false;
-			if (cameraComponent == null || !IsTemporalActive)
+			bool isTemporalActive = IsTemporalActive;
+			if (isTemporalActive != wasTemporalActive)
+			{
+				wasTemporalActive = isTemporalActive;
+				RequestReset(TemporalResetReason.BackendChanged);
+			}
+			if (cameraComponent == null || !isTemporalActive)
 				return;
 
 			cameraComponent.depthTextureMode |= DepthTextureMode.Depth | DepthTextureMode.MotionVectors;
@@ -110,6 +157,50 @@ namespace SDG.Unturned.LinuxPerformance
 			RequestReset(TemporalResetReason.CameraChanged);
 		}
 
+		private void OnLevelLoaded(int level)
+		{
+			RequestReset(TemporalResetReason.MapChanged);
+		}
+
+		private void OnPlayerCreated(Player player)
+		{
+			if (player != null && player.channel != null && player.channel.IsLocalPlayer)
+				BindLocalPlayer(player);
+		}
+
+		private void BindLocalPlayer(Player player)
+		{
+			if (boundLocalPlayer == player)
+				return;
+			UnbindLocalPlayer();
+			if (player == null)
+				return;
+			boundLocalPlayer = player;
+			boundLocalPlayer.onPlayerTeleported += OnPlayerTeleported;
+			if (boundLocalPlayer.life != null)
+				boundLocalPlayer.life.onLifeUpdated += OnLifeUpdated;
+		}
+
+		private void UnbindLocalPlayer()
+		{
+			if (boundLocalPlayer == null)
+				return;
+			boundLocalPlayer.onPlayerTeleported -= OnPlayerTeleported;
+			if (boundLocalPlayer.life != null)
+				boundLocalPlayer.life.onLifeUpdated -= OnLifeUpdated;
+			boundLocalPlayer = null;
+		}
+
+		private void OnPlayerTeleported(Player player, Vector3 position)
+		{
+			RequestReset(TemporalResetReason.Teleport);
+		}
+
+		private void OnLifeUpdated(bool isDead)
+		{
+			RequestReset(isDead ? TemporalResetReason.CameraCut : TemporalResetReason.Respawn);
+		}
+
 		private Camera cameraComponent;
 		private TemporalFrameContext currentFrame;
 		private Matrix4x4 originalProjection;
@@ -119,6 +210,12 @@ namespace SDG.Unturned.LinuxPerformance
 		private uint frameIndex;
 		private bool pendingReset = true;
 		private bool didApplyJitterThisFrame;
+		private bool wasTemporalActive;
+		private int previousRenderWidth;
+		private int previousRenderHeight;
+		private int previousOutputWidth;
+		private int previousOutputHeight;
+		private Player boundLocalPlayer;
 		private TemporalResetReason pendingResetReason = TemporalResetReason.Unknown;
 	}
 }
