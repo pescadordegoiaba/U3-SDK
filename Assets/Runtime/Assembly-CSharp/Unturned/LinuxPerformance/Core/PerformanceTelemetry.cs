@@ -18,6 +18,11 @@ namespace SDG.Unturned.LinuxPerformance
 			public int InternalWidth;
 			public int InternalHeight;
 			public float DeltaTime;
+			public float MainThreadMs;
+			public float RenderThreadMs;
+			public float GpuMs;
+			public bool HasCpuTiming;
+			public bool HasGpuTiming;
 			public long ManagedMemoryBytes;
 			public long MonoUsedBytes;
 			public long VmRssKb;
@@ -33,6 +38,23 @@ namespace SDG.Unturned.LinuxPerformance
 		{
 			using (marker.Auto())
 			{
+				FrameTimingManager.CaptureFrameTimings();
+				uint timingCount = FrameTimingManager.GetLatestTimings(1, frameTimings);
+				float mainThreadMs = 0.0f;
+				float renderThreadMs = 0.0f;
+				float gpuMs = 0.0f;
+				bool hasCpuTiming = false;
+				bool hasGpuTiming = false;
+				if (timingCount > 0)
+				{
+					FrameTiming timing = frameTimings[0];
+					mainThreadMs = (float)timing.cpuMainThreadFrameTime;
+					renderThreadMs = (float)timing.cpuRenderThreadFrameTime;
+					gpuMs = (float)timing.gpuFrameTime;
+					hasCpuTiming = IsValidTiming(mainThreadMs) && IsValidTiming(renderThreadMs);
+					hasGpuTiming = IsValidTiming(gpuMs);
+				}
+
 				bool sampleMemory = Time.unscaledTime >= nextMemorySampleTime;
 				LinuxProcessMemorySnapshot memory = LinuxProcessMemoryReader.LastSnapshot;
 				long managedMemoryBytes = LastFrame.ManagedMemoryBytes;
@@ -52,6 +74,11 @@ namespace SDG.Unturned.LinuxPerformance
 					InternalWidth = DynamicResolutionController.InternalWidth,
 					InternalHeight = DynamicResolutionController.InternalHeight,
 					DeltaTime = Time.unscaledDeltaTime,
+					MainThreadMs = mainThreadMs,
+					RenderThreadMs = renderThreadMs,
+					GpuMs = gpuMs,
+					HasCpuTiming = hasCpuTiming,
+					HasGpuTiming = hasGpuTiming,
 					ManagedMemoryBytes = managedMemoryBytes,
 					MonoUsedBytes = monoUsedBytes,
 					VmRssKb = memory.VmRssKb,
@@ -61,6 +88,11 @@ namespace SDG.Unturned.LinuxPerformance
 				};
 				return LastFrame;
 			}
+		}
+
+		private static bool IsValidTiming(float value)
+		{
+			return value > 0.0f && value < 1000.0f && !float.IsNaN(value) && !float.IsInfinity(value);
 		}
 
 		public static void NotifyUpscalerRendered(RenderTexture source, RenderTexture destination, in PerformanceSettings settings, string backendName)
@@ -86,5 +118,6 @@ namespace SDG.Unturned.LinuxPerformance
 
 		private static readonly ProfilerMarker marker = new ProfilerMarker("LinuxPerformance.Telemetry");
 		private static float nextMemorySampleTime;
+		private static readonly FrameTiming[] frameTimings = new FrameTiming[1];
 	}
 }

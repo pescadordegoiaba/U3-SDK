@@ -22,12 +22,12 @@ namespace SDG.Unturned.LinuxPerformance
 
 			Hardware = HardwareCapabilities.Detect();
 			Graphics = LinuxGraphicsCapabilities.Detect();
+			capabilitiesDirty = false;
 			DynamicResolutionController.AttachCamera(camera);
-			LowLatencyController.Apply(PerformanceSettings.FromGraphicsSettings());
-			MemoryBudgetManager.Apply(PerformanceSettings.FromGraphicsSettings());
-			VisibilityBudgetManager.Apply(camera, PerformanceSettings.FromGraphicsSettings());
+			PerformanceSettings settings = PerformanceSettingsCache.Current;
+			ApplyInvalidatedSettings(camera, settings);
 			IsInitialized = true;
-			SelectBackend(PerformanceSettings.FromGraphicsSettings());
+			SelectBackend(settings, true);
 			UnturnedLog.info("Linux performance capabilities: GPU={0}, API={1}, VRAM={2} MB, plugin={3}, backend={4}, tipo={5}, fsr2={6}, fsr31={7}", Graphics.GraphicsDeviceName, Graphics.GraphicsDeviceType, Graphics.GraphicsMemoryMb, Graphics.NativePluginStatus, Graphics.NativePluginBackend, Graphics.NativePluginBackendKind, Graphics.NativePluginHasFsr2, Graphics.NativePluginHasFsr31Upscaling);
 		}
 
@@ -50,15 +50,16 @@ namespace SDG.Unturned.LinuxPerformance
 				if (!IsInitialized)
 					InitializeForCamera(MainCamera.instance);
 
-				PerformanceSettings settings = PerformanceSettings.FromGraphicsSettings();
-				if (IsNativeFastPath(settings))
+				PerformanceSettings settings = PerformanceSettingsCache.Current;
+				if (LinuxPerformanceRuntime.IsNativeFastPath)
 					return false;
 
+				bool settingsChanged = ApplyInvalidatedSettings(MainCamera.instance, settings);
+				if (settingsChanged)
+					SelectBackend(settings, false);
 				PerformanceTelemetry.FrameSnapshot snapshot = PerformanceTelemetry.CaptureFrameSnapshot();
 				MotionAdaptiveResolutionController.Update(MainCamera.instance, ref settings);
-				DynamicResolutionController.Apply(settings);
-				LowLatencyController.Apply(settings);
-				SelectBackend(settings);
+				DynamicResolutionController.Apply(settings, snapshot);
 
 				if (ActiveBackend == null || settings.UpscalerMode == ELinuxUpscalerMode.Off)
 					return false;
@@ -73,6 +74,7 @@ namespace SDG.Unturned.LinuxPerformance
 				catch (System.Exception e)
 				{
 					LogRenderFallbackOnce("Exceção no backend " + ActiveBackend.DisplayName + ": " + e.Message);
+					InvalidateBackend("Exceção no backend " + ActiveBackend.DisplayName);
 					return false;
 				}
 
@@ -93,10 +95,39 @@ namespace SDG.Unturned.LinuxPerformance
 			RenderTargetPool.Clear();
 			DynamicResolutionController.Reset();
 			IsInitialized = false;
+			selectedSettingsVersion = uint.MaxValue;
+			appliedSettingsVersion = uint.MaxValue;
 		}
 
-		private static void SelectBackend(in PerformanceSettings settings)
+		public static void InvalidateBackend(string reason)
 		{
+			selectedSettingsVersion = uint.MaxValue;
+			capabilitiesDirty = true;
+			PerformanceSettingsCache.Invalidate("Backend: " + reason);
+		}
+
+		private static bool ApplyInvalidatedSettings(Camera camera, in PerformanceSettings settings)
+		{
+			if (appliedSettingsVersion == PerformanceSettingsCache.Version)
+				return false;
+			appliedSettingsVersion = PerformanceSettingsCache.Version;
+			LowLatencyController.Apply(settings);
+			MemoryBudgetManager.Apply(settings);
+			VisibilityBudgetManager.Apply(camera, settings);
+			return true;
+		}
+
+		private static void SelectBackend(in PerformanceSettings settings, bool force)
+		{
+			if (!force && selectedSettingsVersion == PerformanceSettingsCache.Version)
+				return;
+			selectedSettingsVersion = PerformanceSettingsCache.Version;
+			if (capabilitiesDirty)
+			{
+				Graphics = LinuxGraphicsCapabilities.Detect();
+				capabilitiesDirty = false;
+			}
+
 			IUpscalerBackend selected = null;
 			string reason = "Upscaler desativado";
 
@@ -198,5 +229,8 @@ namespace SDG.Unturned.LinuxPerformance
 		private static readonly ProfilerMarker renderHookMarker = new ProfilerMarker("LinuxPerformance.RenderHook");
 		private static bool loggedRenderState;
 		private static bool loggedFallback;
+		private static uint selectedSettingsVersion = uint.MaxValue;
+		private static uint appliedSettingsVersion = uint.MaxValue;
+		private static bool capabilitiesDirty;
 	}
 }

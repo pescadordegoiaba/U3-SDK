@@ -14,7 +14,7 @@ RESULT_FILE="${RESULTS_DIR}/playmode-linux-performance.xml"
 rm -f "${RESULT_FILE}"
 
 UNITY_EXIT=0
-"${UNITY_PATH}" -batchmode -projectPath "${ROOT_DIR}" -executeMethod SDG.Unturned.LinuxPerformance.Editor.LinuxPerformanceTestCommand.RunPlayMode -testResults "${RESULT_FILE}" -logFile "${LOG_DIR}/playmode.log" || UNITY_EXIT=$?
+"${UNITY_PATH}" -batchmode -projectPath "${ROOT_DIR}" -runTests -testPlatform PlayMode -testResults "${RESULT_FILE}" -logFile "${LOG_DIR}/playmode.log" || UNITY_EXIT=$?
 if [[ "${UNITY_EXIT}" -ne 0 ]]; then
 	echo "Unity retornou código ${UNITY_EXIT} durante testes PlayMode. Verifique ${LOG_DIR}/playmode.log" >&2
 	exit "${UNITY_EXIT}"

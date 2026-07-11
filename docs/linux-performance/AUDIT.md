@@ -40,6 +40,22 @@
 - O upscaler só intercepta o frame quando há backend disponível e opção habilitada.
 - FSR 2/3.1 dependem de plugin temporal Vulkan real; quando indisponível retornam motivo legível e caem para FSR 1/resolução nativa.
 
+## Auditoria factual do caminho por frame (baseline 2fcfc16)
+
+Na câmera principal, `GLRenderer.OnRenderImage` chamava `UpscalerManager.Render` antes de decidir pelo blit nativo. Quando o manager não estava no caminho nativo, cada frame executava:
+
+- `PerformanceSettings.FromGraphicsSettings`, incluindo quatro `Enum.IsDefined`, clamps e validação;
+- `PerformanceTelemetry.CaptureFrameSnapshot` (snapshot por frame; RSS/PSS/GC/Mono já eram limitados a 1 Hz);
+- `MotionAdaptiveResolutionController.Update`;
+- `DynamicResolutionController.Apply`, que classificava o gargalo a partir de `Time.unscaledDeltaTime` e tratava `SystemInfo.supportsGpuRecorder` incorretamente como GPU-bound;
+- `LowLatencyController.Apply`;
+- `UpscalerManager.SelectBackend`, incluindo `IsAvailable` de FSR 1, FSR 2 e FSR 3.1 conforme o modo;
+- backend ativo e notificação de telemetria, ou fallback para `Graphics.Blit`.
+
+Na inicialização da câmera, `PerformanceSettings.FromGraphicsSettings` era chamado quatro vezes, junto com detecção de hardware/plugin, memória e configuração de culling. `VisibilityBudgetManager.CaptureSceneMetrics` não tinha chamador no caminho normal, mas quando invocado alocava planos de frustum e percorria todos os renderers registrados. Não foram encontrados `FindObjectsOfType` no pacote Linux Performance.
+
+Após o commit de overhead, configurações e seleção de backend são atualizadas somente por invalidação. O fast path é decidido no início de `OnRenderImage` e faz apenas `Graphics.Blit` seguido de `return`. Timing usa um array persistente de um `FrameTiming`; o classificador mantém 120 amostras em arrays fixos e só altera escala após timing GPU válido.
+
 ## Limitações e riscos
 
 - Built-in Pipeline limita acesso a recursos Vulkan internos necessários para FSR 2/3.1 temporal completo.

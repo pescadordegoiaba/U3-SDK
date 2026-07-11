@@ -50,7 +50,7 @@ namespace SDG.Unturned.LinuxPerformance
 			originalProjection = cameraComponent.projectionMatrix;
 			nonJitteredProjection = originalProjection;
 
-			PerformanceSettings settings = PerformanceSettings.FromGraphicsSettings();
+			PerformanceSettings settings = PerformanceSettingsCache.Current;
 			int renderWidth = Mathf.Max(1, Mathf.RoundToInt(Screen.width * settings.GetPresetScale()));
 			int renderHeight = Mathf.Max(1, Mathf.RoundToInt(Screen.height * settings.GetPresetScale()));
 			Vector2 jitter = TemporalJitter.GetHalton23(frameIndex, renderWidth, renderHeight);
@@ -106,6 +106,7 @@ namespace SDG.Unturned.LinuxPerformance
 
 		private void OnMainCameraInstanceChanged()
 		{
+			PerformanceSettingsCache.NotifyMainCameraChanged(MainCamera.instance);
 			RequestReset(TemporalResetReason.CameraChanged);
 		}
 

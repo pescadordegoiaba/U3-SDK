@@ -26,7 +26,12 @@ namespace SDG.Unturned.LinuxPerformance
 		private void Awake()
 		{
 			ApplyCommandLineOverrides();
-			UpscalerManager.InitializeForCamera(GetComponent<Camera>());
+			Camera camera = GetComponent<Camera>();
+			PerformanceSettingsCache.NotifyMainCameraChanged(camera);
+			PerformanceSettingsCache.Invalidate("Plugin inicializado");
+			UpscalerManager.InitializeForCamera(camera);
+			Level.onLevelLoaded += OnLevelLoaded;
+			Level.onLevelExited += OnLevelExited;
 		}
 
 		private IEnumerator Start()
@@ -91,12 +96,27 @@ namespace SDG.Unturned.LinuxPerformance
 
 		private void OnDisable()
 		{
+			PerformanceSettingsCache.Invalidate("Plugin encerrado");
 			UpscalerManager.Release();
 		}
 
 		private void OnDestroy()
 		{
+			Level.onLevelLoaded -= OnLevelLoaded;
+			Level.onLevelExited -= OnLevelExited;
+			PerformanceSettingsCache.Invalidate("Plugin destruído");
 			UpscalerManager.Release();
+		}
+
+		private static void OnLevelLoaded(int level)
+		{
+			PerformanceSettingsCache.Invalidate("Mapa carregado");
+			UpscalerManager.InvalidateBackend("Mapa carregado");
+		}
+
+		private static void OnLevelExited()
+		{
+			PerformanceSettingsCache.Invalidate("Mapa encerrado");
 		}
 	}
 }

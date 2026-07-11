@@ -121,6 +121,47 @@ namespace SDG.Unturned.Tests
 		}
 
 		[Test]
+		public void BottleneckClassifierRequiresSixtyValidSamplesAndFifteenEvaluations()
+		{
+			BottleneckClassifier classifier = new BottleneckClassifier();
+			for (int i = 0; i < 59; ++i)
+			{
+				classifier.Add(5.0f, 5.0f, 20.0f, true);
+				Assert.AreEqual(EPerformanceBottleneck.Unknown, classifier.Evaluate(16.667f));
+			}
+
+			classifier.Add(5.0f, 5.0f, 20.0f, true);
+			for (int i = 0; i < 14; ++i)
+				Assert.AreEqual(EPerformanceBottleneck.Unknown, classifier.Evaluate(16.667f));
+			Assert.AreEqual(EPerformanceBottleneck.GpuBound, classifier.Evaluate(16.667f));
+		}
+
+		[Test]
+		public void BottleneckClassifierPrioritizesCpuAndRejectsMissingGpuTiming()
+		{
+			BottleneckClassifier classifier = new BottleneckClassifier();
+			for (int i = 0; i < 60; ++i)
+				classifier.Add(20.0f, 20.0f, 20.0f, true);
+			for (int i = 0; i < 15; ++i)
+				classifier.Evaluate(16.667f);
+			Assert.AreEqual(EPerformanceBottleneck.CpuBound, classifier.State);
+
+			classifier.Add(5.0f, 5.0f, 0.0f, false);
+			Assert.AreEqual(EPerformanceBottleneck.Unknown, classifier.Evaluate(16.667f));
+		}
+
+		[Test]
+		public void BottleneckClassifierUsesThirtyFrameScaleCooldown()
+		{
+			BottleneckClassifier classifier = new BottleneckClassifier();
+			classifier.BeginScaleCooldown();
+			Assert.AreEqual(30, classifier.ScaleCooldownFrames);
+			for (int i = 0; i < 30; ++i)
+				classifier.Add(5.0f, 5.0f, 5.0f, true);
+			Assert.AreEqual(0, classifier.ScaleCooldownFrames);
+		}
+
+		[Test]
 		public void TemporalCameraControllerIsPassiveWithoutTemporalBackend()
 		{
 			GameObject gameObject = new GameObject("TemporalCameraControllerTest");

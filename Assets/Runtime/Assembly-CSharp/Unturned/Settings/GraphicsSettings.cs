@@ -467,85 +467,177 @@ namespace SDG.Unturned
 		public static ELinuxUpscalerMode LinuxUpscalerMode
 		{
 			get => graphicsSettingsData.LinuxUpscalerMode;
-			set => graphicsSettingsData.LinuxUpscalerMode = value;
+			set
+			{
+				if (graphicsSettingsData.LinuxUpscalerMode == value)
+					return;
+				graphicsSettingsData.LinuxUpscalerMode = value;
+				InvalidateLinuxPerformanceSettings();
+			}
 		}
 
 		public static EFsrQualityPreset LinuxFsrQualityPreset
 		{
 			get => graphicsSettingsData.LinuxFsrQualityPreset;
-			set => graphicsSettingsData.LinuxFsrQualityPreset = value;
+			set
+			{
+				if (graphicsSettingsData.LinuxFsrQualityPreset == value)
+					return;
+				graphicsSettingsData.LinuxFsrQualityPreset = value;
+				InvalidateLinuxPerformanceSettings();
+			}
 		}
 
 		public static float LinuxCustomRenderScale
 		{
 			get => Mathf.Clamp(graphicsSettingsData.LinuxCustomRenderScale, 0.333f, 1.0f);
-			set => graphicsSettingsData.LinuxCustomRenderScale = Mathf.Clamp(value, 0.333f, 1.0f);
+			set
+			{
+				value = Mathf.Clamp(value, 0.333f, 1.0f);
+				if (Mathf.Approximately(graphicsSettingsData.LinuxCustomRenderScale, value))
+					return;
+				graphicsSettingsData.LinuxCustomRenderScale = value;
+				InvalidateLinuxPerformanceSettings();
+			}
 		}
 
 		public static float LinuxRcasSharpness
 		{
 			get => Mathf.Clamp01(graphicsSettingsData.LinuxRcasSharpness);
-			set => graphicsSettingsData.LinuxRcasSharpness = Mathf.Clamp01(value);
+			set
+			{
+				value = Mathf.Clamp01(value);
+				if (Mathf.Approximately(graphicsSettingsData.LinuxRcasSharpness, value))
+					return;
+				graphicsSettingsData.LinuxRcasSharpness = value;
+				InvalidateLinuxPerformanceSettings();
+			}
 		}
 
 		public static bool LinuxDynamicResolution
 		{
 			get => graphicsSettingsData.LinuxDynamicResolution;
-			set => graphicsSettingsData.LinuxDynamicResolution = value;
+			set
+			{
+				if (graphicsSettingsData.LinuxDynamicResolution == value)
+					return;
+				graphicsSettingsData.LinuxDynamicResolution = value;
+				InvalidateLinuxPerformanceSettings();
+			}
 		}
 
 		public static bool LinuxMotionAdaptiveResolution
 		{
 			get => graphicsSettingsData.LinuxMotionAdaptiveResolution;
-			set => graphicsSettingsData.LinuxMotionAdaptiveResolution = value;
+			set
+			{
+				if (graphicsSettingsData.LinuxMotionAdaptiveResolution == value)
+					return;
+				graphicsSettingsData.LinuxMotionAdaptiveResolution = value;
+				InvalidateLinuxPerformanceSettings();
+			}
 		}
 
 		public static float LinuxTargetFrameTimeMs
 		{
 			get => Mathf.Clamp(graphicsSettingsData.LinuxTargetFrameTimeMs, 6.9f, 66.7f);
-			set => graphicsSettingsData.LinuxTargetFrameTimeMs = Mathf.Clamp(value, 6.9f, 66.7f);
+			set
+			{
+				value = Mathf.Clamp(value, 6.9f, 66.7f);
+				if (Mathf.Approximately(graphicsSettingsData.LinuxTargetFrameTimeMs, value))
+					return;
+				graphicsSettingsData.LinuxTargetFrameTimeMs = value;
+				InvalidateLinuxPerformanceSettings();
+			}
 		}
 
 		public static bool LinuxLowLatencyMode
 		{
 			get => graphicsSettingsData.LinuxLowLatencyMode;
-			set => graphicsSettingsData.LinuxLowLatencyMode = value;
+			set
+			{
+				if (graphicsSettingsData.LinuxLowLatencyMode == value)
+					return;
+				graphicsSettingsData.LinuxLowLatencyMode = value;
+				InvalidateLinuxPerformanceSettings();
+			}
 		}
 
 		public static ELinuxMemoryProfile LinuxMemoryProfile
 		{
 			get => graphicsSettingsData.LinuxMemoryProfile;
-			set => graphicsSettingsData.LinuxMemoryProfile = value;
+			set
+			{
+				if (graphicsSettingsData.LinuxMemoryProfile == value)
+					return;
+				graphicsSettingsData.LinuxMemoryProfile = value;
+				InvalidateLinuxPerformanceSettings();
+			}
 		}
 
 		public static ELinuxCullingProfile LinuxCullingProfile
 		{
 			get => graphicsSettingsData.LinuxCullingProfile;
-			set => graphicsSettingsData.LinuxCullingProfile = value;
+			set
+			{
+				if (graphicsSettingsData.LinuxCullingProfile == value)
+					return;
+				graphicsSettingsData.LinuxCullingProfile = value;
+				InvalidateLinuxPerformanceSettings();
+			}
 		}
 
 		public static bool LinuxCasEnabled
 		{
 			get => graphicsSettingsData.LinuxCasEnabled;
-			set => graphicsSettingsData.LinuxCasEnabled = value;
+			set
+			{
+				if (graphicsSettingsData.LinuxCasEnabled == value)
+					return;
+				graphicsSettingsData.LinuxCasEnabled = value;
+				InvalidateLinuxPerformanceSettings();
+			}
 		}
 
 		public static bool LinuxCacaoEnabled
 		{
 			get => graphicsSettingsData.LinuxCacaoEnabled;
-			set => graphicsSettingsData.LinuxCacaoEnabled = value;
+			set
+			{
+				if (graphicsSettingsData.LinuxCacaoEnabled == value)
+					return;
+				graphicsSettingsData.LinuxCacaoEnabled = value;
+				InvalidateLinuxPerformanceSettings();
+			}
 		}
 
 		public static bool LinuxSssrExperimental
 		{
 			get => graphicsSettingsData.LinuxSssrExperimental;
-			set => graphicsSettingsData.LinuxSssrExperimental = value;
+			set
+			{
+				if (graphicsSettingsData.LinuxSssrExperimental == value)
+					return;
+				graphicsSettingsData.LinuxSssrExperimental = value;
+				InvalidateLinuxPerformanceSettings();
+			}
 		}
 
 		public static bool LinuxDebugOverlay
 		{
 			get => graphicsSettingsData.LinuxDebugOverlay;
-			set => graphicsSettingsData.LinuxDebugOverlay = value;
+			set
+			{
+				if (graphicsSettingsData.LinuxDebugOverlay == value)
+					return;
+				graphicsSettingsData.LinuxDebugOverlay = value;
+				InvalidateLinuxPerformanceSettings();
+			}
+		}
+
+		private static void InvalidateLinuxPerformanceSettings()
+		{
+			LinuxPerformance.PerformanceSettingsCache.Invalidate("Configuração Linux alterada");
 		}
 
 		public static event GraphicsSettingsApplied graphicsSettingsApplied;
@@ -781,6 +873,7 @@ namespace SDG.Unturned
 		public static void apply(string reason)
 		{
 			UnturnedLog.info("Applying graphics settings ({0})", reason);
+			LinuxPerformance.PerformanceSettingsCache.Invalidate("GraphicsSettings.apply: " + reason);
 
 			if (changeResolution)
 			{

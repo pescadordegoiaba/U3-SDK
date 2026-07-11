@@ -25,6 +25,16 @@ namespace SDG.Framework.Rendering
 
 		private void OnRenderImage(RenderTexture source, RenderTexture destination)
 		{
+			if (cachedCamera == MainCamera.instance)
+			{
+				PerformanceSettingsCache.NotifyResolutionChanged(destination.width, destination.height);
+				if (LinuxPerformanceRuntime.IsNativeFastPath)
+				{
+					Graphics.Blit(source, destination);
+					return;
+				}
+			}
+
 			// Blit must always be called.
 			if (cachedCamera != MainCamera.instance || !UpscalerManager.Render(source, destination))
 			{
