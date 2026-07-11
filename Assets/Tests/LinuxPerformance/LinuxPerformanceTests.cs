@@ -3,6 +3,7 @@
 // Please refer to the included LICENSE.txt for copyright notice and license details. //
 ////////////////////////////////////////////////////////////////////////////////////////
 using System.Reflection;
+using System.Runtime.Serialization;
 using NUnit.Framework;
 using SDG.Unturned.LinuxPerformance;
 using UnityEngine;
@@ -162,6 +163,106 @@ namespace SDG.Unturned.Tests
 		}
 
 		[Test]
+		public void GameplayCullingClassifiesOnlyVisualObjects()
+		{
+			Assert.AreEqual(GameplayCullableCategory.LargeStructure, GameplayCullingManager.Classify(EObjectType.LARGE, false, false, false, false, false));
+			Assert.AreEqual(GameplayCullableCategory.Foliage, GameplayCullingManager.Classify(EObjectType.SMALL, true, false, false, false, false));
+			Assert.AreEqual(GameplayCullableCategory.NeverCull, GameplayCullingManager.Classify(EObjectType.SMALL, false, false, false, false, true));
+		}
+
+		[Test]
+		public void GameplayCullingCriticalFlagsAlwaysWin()
+		{
+			Assert.IsTrue(GameplayCullingManager.IsCritical(true, false, false, false, false, false, false));
+			Assert.IsTrue(GameplayCullingManager.IsCritical(false, true, false, false, false, false, false));
+			Assert.IsTrue(GameplayCullingManager.IsCritical(false, false, true, false, false, false, false));
+			Assert.IsTrue(GameplayCullingManager.IsCritical(false, false, false, true, false, false, false));
+			Assert.IsTrue(GameplayCullingManager.IsCritical(false, false, false, false, true, false, false));
+			Assert.IsFalse(GameplayCullingManager.IsCritical(false, false, false, false, false, false, false));
+		}
+
+		[Test]
+		public void GameplayCullingUsesHysteresis()
+		{
+			Assert.IsTrue(GameplayCullingManager.ShouldBeVisible(true, 129.0f * 129.0f, 130.0f, 115.0f));
+			Assert.IsFalse(GameplayCullingManager.ShouldBeVisible(true, 131.0f * 131.0f, 130.0f, 115.0f));
+			Assert.IsFalse(GameplayCullingManager.ShouldBeVisible(false, 116.0f * 116.0f, 130.0f, 115.0f));
+			Assert.IsTrue(GameplayCullingManager.ShouldBeVisible(false, 114.0f * 114.0f, 130.0f, 115.0f));
+		}
+
+		[Test]
+		public void GameplayCullingBudgetMatchesInitialLimits()
+		{
+			CullingWorkBudget budget = CullingWorkBudget.CreateDefault();
+			Assert.AreEqual(32, budget.Renderers);
+			Assert.AreEqual(16, budget.Shadows);
+			Assert.AreEqual(8, budget.Lights);
+			Assert.AreEqual(8, budget.Particles);
+			Assert.AreEqual(8, budget.Animators);
+		}
+
+		[Test]
+		public void GameplayCullingTracksCurrentAndNeighborRegions()
+		{
+			Vector2Int camera = new Vector2Int(10, 10);
+			Assert.IsTrue(GameplayCullingManager.IsRegionRelevant(camera, new Vector2Int(9, 11)));
+			Assert.IsFalse(GameplayCullingManager.IsRegionRelevant(camera, new Vector2Int(12, 10)));
+		}
+
+		[Test]
+		public void GameplayCullingSafelyHandlesDestroyedReferencesAndEmptyRestore()
+		{
+			Assert.DoesNotThrow(() => VisibilityBudgetManager.Register(null));
+			Assert.DoesNotThrow(() => VisibilityBudgetManager.Unregister(null));
+			Assert.DoesNotThrow(() => VisibilityBudgetManager.NotifyMoved(null));
+			Assert.DoesNotThrow(() => VisibilityBudgetManager.RestoreAll());
+		}
+
+		[Test]
+		public void GameplayCullingRestoresRendererLightAnimatorAndDestroyedComponents()
+		{
+			GameObject gameObject = new GameObject("CullingRestoreTest");
+			try
+			{
+				MeshRenderer renderer = gameObject.AddComponent<MeshRenderer>();
+				renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
+				Light light = gameObject.AddComponent<Light>();
+				light.enabled = true;
+				light.shadows = LightShadows.Hard;
+				Animator animator = gameObject.AddComponent<Animator>();
+				animator.enabled = true;
+
+				LevelObject levelObject = (LevelObject)FormatterServices.GetUninitializedObject(typeof(LevelObject));
+				SetPrivateField(levelObject, "_transform", gameObject.transform);
+				SetPrivateField(levelObject, "areConditionsMet", true);
+				SetPrivateField(levelObject, "<isActiveInRegion>k__BackingField", true);
+				CullingEntry entry = new CullingEntry(levelObject);
+				entry.DesiredVisible = false;
+				CullingWorkBudget budget = CullingWorkBudget.CreateDefault();
+				Assert.IsTrue(entry.ApplyIncrementally(ref budget));
+				Assert.IsFalse(renderer.enabled);
+				Assert.AreEqual(UnityEngine.Rendering.ShadowCastingMode.Off, renderer.shadowCastingMode);
+				Assert.IsFalse(light.enabled);
+				Assert.IsFalse(animator.enabled);
+				Assert.AreEqual(31, budget.Renderers);
+				Assert.AreEqual(15, budget.Shadows);
+				Assert.AreEqual(7, budget.Lights);
+				Assert.AreEqual(7, budget.Animators);
+
+				Object.DestroyImmediate(animator);
+				Assert.DoesNotThrow(() => entry.RestoreImmediately());
+				Assert.IsTrue(renderer.enabled);
+				Assert.AreEqual(UnityEngine.Rendering.ShadowCastingMode.On, renderer.shadowCastingMode);
+				Assert.IsTrue(light.enabled);
+				Assert.AreEqual(LightShadows.Hard, light.shadows);
+			}
+			finally
+			{
+				Object.DestroyImmediate(gameObject);
+			}
+		}
+
+		[Test]
 		public void TemporalCameraControllerIsPassiveWithoutTemporalBackend()
 		{
 			GameObject gameObject = new GameObject("TemporalCameraControllerTest");
@@ -268,6 +369,13 @@ namespace SDG.Unturned.Tests
 			MethodInfo method = target.GetType().GetMethod(methodName, BindingFlags.Instance | BindingFlags.NonPublic);
 			Assert.IsNotNull(method);
 			method.Invoke(target, null);
+		}
+
+		private static void SetPrivateField(object target, string fieldName, object value)
+		{
+			FieldInfo field = target.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
+			Assert.IsNotNull(field, fieldName);
+			field.SetValue(target, value);
 		}
 	}
 }

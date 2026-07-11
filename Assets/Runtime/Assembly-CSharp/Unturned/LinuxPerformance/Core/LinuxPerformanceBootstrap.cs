@@ -26,10 +26,10 @@ namespace SDG.Unturned.LinuxPerformance
 		private void Awake()
 		{
 			ApplyCommandLineOverrides();
-			Camera camera = GetComponent<Camera>();
-			PerformanceSettingsCache.NotifyMainCameraChanged(camera);
+			cameraComponent = GetComponent<Camera>();
+			PerformanceSettingsCache.NotifyMainCameraChanged(cameraComponent);
 			PerformanceSettingsCache.Invalidate("Plugin inicializado");
-			UpscalerManager.InitializeForCamera(camera);
+			UpscalerManager.InitializeForCamera(cameraComponent);
 			Level.onLevelLoaded += OnLevelLoaded;
 			Level.onLevelExited += OnLevelExited;
 		}
@@ -47,6 +47,11 @@ namespace SDG.Unturned.LinuxPerformance
 			UnturnedLog.info("Captura Linux Performance solicitada por linha de comando: {0}", capturePath);
 			yield return new WaitForSecondsRealtime(2.0f);
 			Application.Quit(0);
+		}
+
+		private void Update()
+		{
+			VisibilityBudgetManager.Tick(cameraComponent, PerformanceSettingsCache.Current);
 		}
 
 		private static void ApplyCommandLineOverrides()
@@ -105,6 +110,7 @@ namespace SDG.Unturned.LinuxPerformance
 			Level.onLevelLoaded -= OnLevelLoaded;
 			Level.onLevelExited -= OnLevelExited;
 			PerformanceSettingsCache.Invalidate("Plugin destruído");
+			VisibilityBudgetManager.RestoreAll();
 			UpscalerManager.Release();
 		}
 
@@ -116,7 +122,10 @@ namespace SDG.Unturned.LinuxPerformance
 
 		private static void OnLevelExited()
 		{
+			VisibilityBudgetManager.Clear();
 			PerformanceSettingsCache.Invalidate("Mapa encerrado");
 		}
+
+		private Camera cameraComponent;
 	}
 }

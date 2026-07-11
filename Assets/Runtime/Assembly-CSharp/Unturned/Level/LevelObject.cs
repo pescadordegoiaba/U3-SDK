@@ -784,7 +784,7 @@ namespace SDG.Unturned
 
 				transform.GetComponentsInChildren(true, renderers);
 #if !DEDICATED_SERVER
-				RegisterRenderersForLinuxPerformance();
+				RegisterForLinuxPerformance();
 #endif // !DEDICATED_SERVER
 				if (materialOverride != null)
 				{
@@ -1140,24 +1140,14 @@ namespace SDG.Unturned
 		/// </summary>
 		private bool areRenderersEnabled = true;
 
-		private void RegisterRenderersForLinuxPerformance()
+		private void RegisterForLinuxPerformance()
 		{
-			if (renderers == null)
-				return;
-			foreach (Renderer renderer in renderers)
-			{
-				SDG.Unturned.LinuxPerformance.VisibilityBudgetManager.Register(renderer);
-			}
+			SDG.Unturned.LinuxPerformance.VisibilityBudgetManager.Register(this);
 		}
 
-		private void UnregisterRenderersForLinuxPerformance()
+		private void UnregisterFromLinuxPerformance()
 		{
-			if (renderers == null)
-				return;
-			foreach (Renderer renderer in renderers)
-			{
-				SDG.Unturned.LinuxPerformance.VisibilityBudgetManager.Unregister(renderer);
-			}
+			SDG.Unturned.LinuxPerformance.VisibilityBudgetManager.Unregister(this);
 		}
 #endif // !DEDICATED_SERVER
 
@@ -1221,7 +1211,7 @@ namespace SDG.Unturned
 		internal void OnDestroy()
 		{
 #if !DEDICATED_SERVER
-			UnregisterRenderersForLinuxPerformance();
+			UnregisterFromLinuxPerformance();
 #endif // !DEDICATED_SERVER
 			if (asset != null && !Dedicator.IsDedicatedServer && asset.isGore)
 			{

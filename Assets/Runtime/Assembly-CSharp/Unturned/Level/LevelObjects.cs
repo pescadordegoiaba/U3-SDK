@@ -231,6 +231,7 @@ namespace SDG.Unturned
 						{
 							levelObject.ownedCullingVolume.OnLevelObjectMoved();
 						}
+						SDG.Unturned.LinuxPerformance.VisibilityBudgetManager.NotifyMoved(levelObject);
 #endif // !DEDICATED_SERVER
 
 						if (levelObject.skybox != null)
@@ -336,6 +337,9 @@ namespace SDG.Unturned
 				objects[old_x, old_y].Remove(levelObject);
 			}
 			objects[new_x, new_y].Add(levelObject);
+#if !DEDICATED_SERVER
+			SDG.Unturned.LinuxPerformance.VisibilityBudgetManager.NotifyMoved(levelObject);
+#endif // !DEDICATED_SERVER
 		}
 
 		[System.Obsolete]
