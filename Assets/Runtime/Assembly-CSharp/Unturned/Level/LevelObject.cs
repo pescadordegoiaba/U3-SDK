@@ -219,6 +219,21 @@ namespace SDG.Unturned
 			private set;
 		} = true;
 
+		internal void SetIsVisibleByGameplayBudget(bool isVisible)
+		{
+			if (isVisibleByGameplayBudget != isVisible)
+			{
+				isVisibleByGameplayBudget = isVisible;
+				UpdateActiveAndRenderersEnabled();
+			}
+		}
+
+		internal bool isVisibleByGameplayBudget
+		{
+			get;
+			private set;
+		} = true;
+
 		internal void SetIsActiveOverrideForSatelliteCapture(bool isActive)
 		{
 			if (transform != null)
@@ -768,6 +783,9 @@ namespace SDG.Unturned
 				}
 
 				transform.GetComponentsInChildren(true, renderers);
+#if !DEDICATED_SERVER
+				RegisterRenderersForLinuxPerformance();
+#endif // !DEDICATED_SERVER
 				if (materialOverride != null)
 				{
 					for (int index = 0; index < renderers.Count; index++)
@@ -1065,7 +1083,7 @@ namespace SDG.Unturned
 				// Culling volume is ignored for object activation because item physics may be resting on invisible objects.
 				shouldGameObjectBeActive = (isActiveOrCinematic || shouldCollisionAlwaysBeEnabled) && areConditionsMet;
 
-				shouldRenderersBeEnabled = isActiveOrCinematic && (isVisibleInCullingVolume || WantsCullingVolumesOff) && areConditionsMet;
+				shouldRenderersBeEnabled = isActiveOrCinematic && (isVisibleInCullingVolume || WantsCullingVolumesOff) && isVisibleByGameplayBudget && areConditionsMet;
 			}
 
 			if (transform != null)
@@ -1121,6 +1139,26 @@ namespace SDG.Unturned
 		/// Assume renderers default to enabled.
 		/// </summary>
 		private bool areRenderersEnabled = true;
+
+		private void RegisterRenderersForLinuxPerformance()
+		{
+			if (renderers == null)
+				return;
+			foreach (Renderer renderer in renderers)
+			{
+				SDG.Unturned.LinuxPerformance.VisibilityBudgetManager.Register(renderer);
+			}
+		}
+
+		private void UnregisterRenderersForLinuxPerformance()
+		{
+			if (renderers == null)
+				return;
+			foreach (Renderer renderer in renderers)
+			{
+				SDG.Unturned.LinuxPerformance.VisibilityBudgetManager.Unregister(renderer);
+			}
+		}
 #endif // !DEDICATED_SERVER
 
 		private void UpdateNavActive()
@@ -1182,6 +1220,9 @@ namespace SDG.Unturned
 		/// </summary>
 		internal void OnDestroy()
 		{
+#if !DEDICATED_SERVER
+			UnregisterRenderersForLinuxPerformance();
+#endif // !DEDICATED_SERVER
 			if (asset != null && !Dedicator.IsDedicatedServer && asset.isGore)
 			{
 				OptionsSettings.OnEnableGoreChanged -= updateConditions;

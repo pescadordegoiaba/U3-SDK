@@ -969,7 +969,7 @@ namespace SDG.Unturned
 				MainCamera.instance.renderingPath = renderMode == ERenderMode.DEFERRED ? RenderingPath.DeferredShading : RenderingPath.Forward;
 				MainCamera.instance.allowHDR = true;
 				MainCamera.instance.allowMSAA = false; // We no longer use MSAA in any mode.
-				MainCamera.instance.allowDynamicResolution = LinuxDynamicResolution || LinuxUpscalerMode != ELinuxUpscalerMode.Off;
+				MainCamera.instance.allowDynamicResolution = LinuxDynamicResolution;
 
 				ApplySunShaftsSettings();
 				ApplyOutlineSettings();

@@ -109,10 +109,8 @@ namespace SDG.Unturned
 			return string.Format("3.{0}.{1}.{2}", Major_Version, Minor_Version, Patch_Version);
 		}
 
-	#if WITH_GRANTPACKAGE_PROMO
 		public int[] GrantPackageIDs;
 		public string GrantPackageURL;
-	#endif // WITH_GRANTPACKAGE_PROMO
 
 		public GameStatusData()
 		{
@@ -121,7 +119,6 @@ namespace SDG.Unturned
 
 		public void EnsureDefaults()
 		{
-	#if WITH_GRANTPACKAGE_PROMO
 			if (GrantPackageIDs == null)
 			{
 				GrantPackageIDs = Array.Empty<int>();
@@ -131,7 +128,6 @@ namespace SDG.Unturned
 			{
 				GrantPackageURL = string.Empty;
 			}
-	#endif // WITH_GRANTPACKAGE_PROMO
 		}
 	}
 

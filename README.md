@@ -21,6 +21,10 @@ Source code for [Unturned](https://smartlydressedgames.com/unturned/), a free op
 
 ## Otimizações Linux Performance
 
+> Estado desta branch: **Unstable FSR2 without work**.
+>
+> Esta branch é experimental/instável. Ela contém a infraestrutura Linux Performance e hotfixes para fallback nativo, mas **FSR 2 ainda não funciona**. Não trate esta branch como release estável.
+
 Este fork adiciona uma infraestrutura experimental de desempenho para Linux, focada em:
 
 - Unity 2022.3.62f3;
@@ -34,7 +38,7 @@ Este fork adiciona uma infraestrutura experimental de desempenho para Linux, foc
 
 ### O que está funcional
 
-No estado atual, **apenas o FSR 1 está funcional**.
+No estado atual, **apenas o FSR 1 está parcialmente funcional/experimental** e deve ser usado com cuidado.
 
 O FSR 1 foi implementado em shader Unity com:
 
@@ -44,6 +48,8 @@ O FSR 1 foi implementado em shader Unity com:
 - nitidez configurável;
 - fallback para renderização nativa;
 - funcionamento sem plugin nativo obrigatório.
+
+Depois dos testes no Player Linux, o caminho nativo recebeu hotfixes para evitar tela preta, brilho quase preto e queda de FPS quando o pacote Linux Performance está desligado. Por segurança, o FSR 1 não roda mais quando a resolução interna e a resolução final são iguais; nesse caso o jogo volta para `Graphics.Blit` nativo.
 
 O shader fica em:
 
@@ -55,8 +61,8 @@ Assets/Resources/Shaders/LinuxPerformance/FSR1.shader
 
 Os itens abaixo **não estão funcionais ainda** e permanecem bloqueados ou pendentes:
 
-- FSR 2 temporal real;
-- FSR 3.1 Upscaling real;
+- FSR 2 temporal real (**sem implementação funcional nesta branch**);
+- FSR 3.1 Upscaling real (**sem implementação funcional nesta branch**);
 - FSR 3 Frame Generation;
 - FSR 4.1;
 - backend Vulkan FidelityFX completo;
@@ -67,6 +73,18 @@ Os itens abaixo **não estão funcionais ainda** e permanecem bloqueados ou pend
 - medição completa de RSS/VRAM em gameplay.
 
 O plugin nativo Linux atual **não é um backend FidelityFX completo**. Ele é apenas um plugin de ABI/capacidades usado para validar carregamento e fallback.
+
+### Status honesto dos recursos
+
+```text
+Renderização nativa Linux/Vulkan: compilada e usada como fallback principal.
+FSR 1: experimental; EASU/RCAS em shader Unity; não deve rodar em resolução nativa.
+FSR 2: não funcional; sem backend temporal Vulkan/FidelityFX real.
+FSR 3.1 Upscaling: não funcional; sem backend Vulkan/FidelityFX real.
+Frame Generation: indisponível na RX 580 e não simulado.
+FSR 4.1: indisponível em Linux/RX 580.
+Plugin nativo: ABI/capability plugin, não backend FidelityFX completo.
+```
 
 ### Como compilar no Linux
 
@@ -104,6 +122,18 @@ Para testar o FSR 1 diretamente:
 
 ```bash
 Builds/Linux64/Unturned.x86_64 -force-vulkan -LinuxPerformanceForceFsr1 -LinuxPerformanceDebugOverlay
+```
+
+Para isolar o caminho nativo e medir FPS sem recursos experimentais:
+
+```bash
+Builds/Linux64/Unturned.x86_64 -force-vulkan -LinuxPerformanceForceNative -LinuxPerformanceDisableDynamicResolution -logFile Logs/TesteFPSNative.log
+```
+
+Para testar FSR 1 sem resolução dinâmica:
+
+```bash
+Builds/Linux64/Unturned.x86_64 -force-vulkan -LinuxPerformanceForceFsr1 -LinuxPerformanceDisableDynamicResolution -logFile Logs/TesteFPSFsr1.log
 ```
 
 ### Scripts disponíveis

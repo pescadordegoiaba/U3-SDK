@@ -212,7 +212,8 @@ Shader "Hidden/Unturned/LinuxPerformance/FSR1"
 			EasuTap(aC, aW, float2(1.0, 2.0) - pp, dir, len2, lob, clp, o.rgb);
 			EasuTap(aC, aW, float2(0.0, 2.0) - pp, dir, len2, lob, clp, n.rgb);
 
-			float3 rgb = min(max4, max(min4, aC * ApproxRcp(aW)));
+			float3 easuRgb = aW > 1.0e-6 ? aC * ApproxRcp(aW) : f.rgb;
+			float3 rgb = max(0.0, min(max4, max(min4, easuRgb)));
 			float alpha = saturate((f.a + g.a + j.a + k.a) * 0.25);
 			return float4(rgb, alpha);
 		}
@@ -256,7 +257,7 @@ Shader "Hidden/Unturned/LinuxPerformance/FSR1"
 			float sharpness = exp2(-sharpnessStops);
 			float lobe = max(-FSR_RCAS_LIMIT, min(max(lobeRgb.r, max(lobeRgb.g, lobeRgb.b)), 0.0)) * sharpness * nz;
 			float rcpL = rcp(4.0 * lobe + 1.0);
-			float3 rgb = (lobe * b4.rgb + lobe * d4.rgb + lobe * h4.rgb + lobe * f4.rgb + e4.rgb) * rcpL;
+			float3 rgb = max(0.0, (lobe * b4.rgb + lobe * d4.rgb + lobe * h4.rgb + lobe * f4.rgb + e4.rgb) * rcpL);
 			return float4(rgb, e4.a);
 		}
 		ENDCG

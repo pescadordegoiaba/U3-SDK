@@ -1,0 +1,18 @@
+////////////////////////////////////////////////////////////////////////////////////////
+// This file is part of the U3 SDK: https://github.com/smartlydressedgames/u3-sdk/    //
+// Please refer to the included LICENSE.txt for copyright notice and license details. //
+////////////////////////////////////////////////////////////////////////////////////////
+namespace SDG.Unturned.LinuxPerformance
+{
+	public static class MotionVectorValidator
+	{
+		public static ELinuxFeatureState State { get; private set; } = ELinuxFeatureState.Disabled;
+		public static string StateReason { get; private set; } = "Motion vectors ainda não validados visualmente no Player gráfico.";
+
+		public static void MarkUnavailable(string reason)
+		{
+			State = ELinuxFeatureState.Unsupported;
+			StateReason = reason;
+		}
+	}
+}

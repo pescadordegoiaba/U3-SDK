@@ -41,3 +41,17 @@
 - Player gráfico com `-force-vulkan`: inicializou em `AMD Radeon RX 580 Series (RADV POLARIS10)`, mas terminou por timeout e não gerou captura.
 - `tools/run_editmode_tests.sh`: bloqueado porque a Unity encerrou sem gerar XML do Test Runner; o script retorna erro quando isso acontece.
 - `tools/run_playmode_tests.sh`: mesmo bloqueio do EditMode.
+# Atualização da fase 3 - 2026-07-11
+
+Consulte `docs/linux-performance/PHASE3_RESULTS.md` para os resultados executados desta fase.
+
+Resumo desta fase:
+
+- `LinuxPerformanceRuntime.cs` foi dividido em módulos por responsabilidade.
+- O plugin nativo foi atualizado para ABI v2, mas continua classificado como `CapabilityPlugin`.
+- O contrato temporal para FSR 2/FSR 3.1 foi criado, sem fingir dispatch funcional.
+- `TemporalCameraController` aplica jitter Halton e prepara matrizes, mas o backend nativo ainda não consome recursos Vulkan.
+- EditMode passou com `1319` testes.
+- A build Linux gerou player e servidor.
+- O player iniciou com Vulkan na RX 580/RADV, mas a captura visual automática não foi comprovada.
+- FSR 2, FSR 3.1, Frame Generation, FSR 4.1 e HZB permanecem indisponíveis/bloqueados.

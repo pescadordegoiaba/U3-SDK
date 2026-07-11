@@ -77,7 +77,11 @@ namespace Unturned.SystemEx
 
 		static PathEx()
 		{
-			invalidFileNameChars = Path.GetInvalidFileNameChars();
+			char[] systemInvalidFileNameChars = Path.GetInvalidFileNameChars();
+			char[] portableInvalidFileNameChars = new char[] { '<', '>', ':', '"', '/', '\\', '|', '?', '*' };
+			invalidFileNameChars = new char[systemInvalidFileNameChars.Length + portableInvalidFileNameChars.Length];
+			System.Array.Copy(systemInvalidFileNameChars, invalidFileNameChars, systemInvalidFileNameChars.Length);
+			System.Array.Copy(portableInvalidFileNameChars, 0, invalidFileNameChars, systemInvalidFileNameChars.Length, portableInvalidFileNameChars.Length);
 		}
 
 		private static char[] invalidFileNameChars;

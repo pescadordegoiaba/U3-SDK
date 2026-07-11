@@ -2,6 +2,7 @@
 // This file is part of the U3 SDK: https://github.com/smartlydressedgames/u3-sdk/    //
 // Please refer to the included LICENSE.txt for copyright notice and license details. //
 ////////////////////////////////////////////////////////////////////////////////////////
+using System.Reflection;
 using NUnit.Framework;
 using SDG.Unturned.LinuxPerformance;
 using UnityEngine;
@@ -56,6 +57,93 @@ namespace SDG.Unturned.Tests
 		}
 
 		[Test]
+		public void UpscalerDoesNotForceDynamicResolutionScale()
+		{
+			DynamicResolutionController.Reset();
+
+			PerformanceSettings settings = new PerformanceSettings()
+			{
+				UpscalerMode = ELinuxUpscalerMode.Fsr1,
+				FsrQualityPreset = EFsrQualityPreset.Quality,
+				DynamicResolution = false,
+				TargetFrameTimeMs = 16.7f,
+			};
+
+			DynamicResolutionController.Apply(settings);
+
+			Assert.AreEqual(1.0f, DynamicResolutionController.CurrentScale, 0.001f);
+		}
+
+		[Test]
+		public void Fsr1SkipsNativeResolutionUnlessDiagnosticForced()
+		{
+			Assert.IsFalse(Fsr1Backend.ShouldRenderForResolution(1280, 1024, 1280, 1024, false));
+			Assert.IsTrue(Fsr1Backend.ShouldRenderForResolution(1280, 1024, 1280, 1024, true));
+		}
+
+		[Test]
+		public void Fsr1RunsOnlyWhenUpscaling()
+		{
+			Assert.IsTrue(Fsr1Backend.ShouldRenderForResolution(853, 682, 1280, 1024, false));
+			Assert.IsFalse(Fsr1Backend.ShouldRenderForResolution(0, 682, 1280, 1024, false));
+		}
+
+		[Test]
+		public void UpscalerManagerUsesNativeFastPathWhenAllLinuxFeaturesAreOff()
+		{
+			PerformanceSettings settings = new PerformanceSettings()
+			{
+				UpscalerMode = ELinuxUpscalerMode.Off,
+				DynamicResolution = false,
+				MotionAdaptiveResolution = false,
+				LowLatencyMode = false,
+				CullingProfile = ELinuxCullingProfile.Original,
+				CasEnabled = false,
+				CacaoEnabled = false,
+				SssrExperimental = false,
+				DebugOverlay = false,
+			};
+
+			Assert.IsTrue(UpscalerManager.IsNativeFastPath(settings));
+		}
+
+		[Test]
+		public void UpscalerManagerDoesNotUseNativeFastPathWhenFeatureIsEnabled()
+		{
+			PerformanceSettings settings = new PerformanceSettings()
+			{
+				UpscalerMode = ELinuxUpscalerMode.Off,
+				CullingProfile = ELinuxCullingProfile.Original,
+				DebugOverlay = true,
+			};
+
+			Assert.IsFalse(UpscalerManager.IsNativeFastPath(settings));
+		}
+
+		[Test]
+		public void TemporalCameraControllerIsPassiveWithoutTemporalBackend()
+		{
+			GameObject gameObject = new GameObject("TemporalCameraControllerTest");
+			try
+			{
+				Camera camera = gameObject.AddComponent<Camera>();
+				Matrix4x4 originalProjection = Matrix4x4.Perspective(60.0f, 1.333f, 0.3f, 1000.0f);
+				camera.projectionMatrix = originalProjection;
+				TemporalCameraController controller = gameObject.AddComponent<TemporalCameraController>();
+
+				InvokeUnityMessage(controller, "Awake");
+				InvokeUnityMessage(controller, "OnPreCull");
+				InvokeUnityMessage(controller, "OnPostRender");
+
+				Assert.AreEqual(originalProjection, camera.projectionMatrix);
+			}
+			finally
+			{
+				Object.DestroyImmediate(gameObject);
+			}
+		}
+
+		[Test]
 		public void HardwareCapabilitiesDetectsCurrentRuntime()
 		{
 			HardwareCapabilities capabilities = HardwareCapabilities.Detect();
@@ -83,6 +171,46 @@ namespace SDG.Unturned.Tests
 		}
 
 		[Test]
+		public void TemporalJitterHaltonIsBounded()
+		{
+			for (uint i = 0; i < 16; ++i)
+			{
+				Vector2 jitter = TemporalJitter.GetHalton23(i, 1920, 1080);
+				Assert.GreaterOrEqual(jitter.x, -0.5f / 1920.0f);
+				Assert.LessOrEqual(jitter.x, 0.5f / 1920.0f);
+				Assert.GreaterOrEqual(jitter.y, -0.5f / 1080.0f);
+				Assert.LessOrEqual(jitter.y, 0.5f / 1080.0f);
+			}
+		}
+
+		[Test]
+		public void Fsr4ProviderRejectsLinuxRx580ClassHardware()
+		{
+			HardwareCapabilities hardware = new HardwareCapabilities()
+			{
+				IsLinux = true,
+			};
+			LinuxGraphicsCapabilities graphics = new LinuxGraphicsCapabilities()
+			{
+				GraphicsDeviceType = UnityEngine.Rendering.GraphicsDeviceType.Vulkan,
+				IsAmd = true,
+				IsRx580OrPolaris = true,
+			};
+
+			Fsr4CapabilityResult result = Fsr4Provider.Query(hardware, graphics);
+			Assert.AreEqual(ELinuxFeatureState.Unsupported, result.State);
+			Assert.IsTrue((result.UnsupportedReasons & EFsr4UnsupportedReason.UnsupportedGpu) != 0);
+			Assert.IsTrue((result.UnsupportedReasons & EFsr4UnsupportedReason.UnsupportedGraphicsApi) != 0);
+		}
+
+		[Test]
+		public void LinuxProcessMemoryReaderDoesNotThrow()
+		{
+			LinuxProcessMemorySnapshot snapshot;
+			Assert.DoesNotThrow(() => LinuxProcessMemoryReader.TryRead(out snapshot));
+		}
+
+		[Test]
 		public void RenderTargetPoolReusesDescriptor()
 		{
 			RenderTextureDescriptor descriptor = new RenderTextureDescriptor(64, 64, RenderTextureFormat.ARGB32, 0);
@@ -92,6 +220,13 @@ namespace SDG.Unturned.Tests
 			Assert.AreSame(first, second);
 			RenderTargetPool.Release(second);
 			RenderTargetPool.Clear();
+		}
+
+		private static void InvokeUnityMessage(object target, string methodName)
+		{
+			MethodInfo method = target.GetType().GetMethod(methodName, BindingFlags.Instance | BindingFlags.NonPublic);
+			Assert.IsNotNull(method);
+			method.Invoke(target, null);
 		}
 	}
 }
