@@ -38,6 +38,21 @@ namespace SDG.Unturned.LinuxPerformance
 
 		private IEnumerator Start()
 		{
+			if (SystemInfo.graphicsDeviceType == UnityEngine.Rendering.GraphicsDeviceType.Vulkan)
+			{
+				bool smokePassed = false;
+				string smokeReason = "Não executado";
+				yield return NativeVulkanBridge.ValidateSmokeCoroutine((passed, reason) =>
+				{
+					smokePassed = passed;
+					smokeReason = reason;
+				});
+				if (smokePassed)
+					UnturnedLog.info("Linux Performance: {0}", smokeReason);
+				else
+					UnturnedLog.warn("Linux Performance: smoke Vulkan não validado: {0}", smokeReason);
+			}
+
 			if (!HasCommandLineArg("-LinuxPerformanceCapture"))
 				yield break;
 
@@ -116,6 +131,7 @@ namespace SDG.Unturned.LinuxPerformance
 			LowResolutionWorldRenderer.ReleaseAll();
 			TemporalDebugViews.Release();
 			TemporalInputCollector.Clear();
+			NativeVulkanBridge.Release();
 			UpscalerManager.Release();
 		}
 

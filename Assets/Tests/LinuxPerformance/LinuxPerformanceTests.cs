@@ -2,12 +2,14 @@
 // This file is part of the U3 SDK: https://github.com/smartlydressedgames/u3-sdk/    //
 // Please refer to the included LICENSE.txt for copyright notice and license details. //
 ////////////////////////////////////////////////////////////////////////////////////////
+using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Runtime.Serialization;
 using NUnit.Framework;
 using SDG.Unturned.LinuxPerformance;
 using UnityEngine;
+using UnityEngine.TestTools;
 
 namespace SDG.Unturned.Tests
 {
@@ -495,6 +497,28 @@ namespace SDG.Unturned.Tests
 			string status = null;
 			Assert.DoesNotThrow(() => NativeRenderBackend.TryGetCapabilities(out capabilities, out status));
 			Assert.IsNotNull(status);
+		}
+
+		[UnityTest]
+		public IEnumerator NativeVulkanComputeSmokeWritesExpectedImage()
+		{
+			if (SystemInfo.graphicsDeviceType != UnityEngine.Rendering.GraphicsDeviceType.Vulkan)
+				Assert.Ignore("Teste requer Unity Editor em Vulkan");
+			bool completed = false;
+			bool passed = false;
+			string reason = null;
+			yield return NativeVulkanBridge.ValidateSmokeCoroutine((result, message) =>
+			{
+				completed = true;
+				passed = result;
+				reason = message;
+			});
+			Assert.IsTrue(completed);
+			Assert.IsTrue(passed, reason);
+			Assert.IsTrue(NativeRenderBackend.TryGetCapabilities(out NativeRenderBackend.PluginCapabilities capabilities, out string status), status);
+			Assert.IsTrue(capabilities.HasVulkanBackend);
+			Assert.AreEqual(ELinuxNativeBackendKind.VulkanComputeFunctional, capabilities.BackendKind);
+			Assert.IsFalse(capabilities.HasFsr2);
 		}
 
 		[Test]

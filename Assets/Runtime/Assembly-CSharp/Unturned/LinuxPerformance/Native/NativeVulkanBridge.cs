@@ -1,0 +1,293 @@
+////////////////////////////////////////////////////////////////////////////////////////
+// This file is part of the U3 SDK: https://github.com/smartlydressedgames/u3-sdk/    //
+// Please refer to the included LICENSE.txt for copyright notice and license details. //
+////////////////////////////////////////////////////////////////////////////////////////
+using System;
+using System.Collections;
+using System.Runtime.InteropServices;
+using UnityEngine;
+using UnityEngine.Rendering;
+
+namespace SDG.Unturned.LinuxPerformance
+{
+	public static class NativeVulkanBridge
+	{
+		public const int SmokeStatusPending = 0;
+		public const int SmokeStatusRecorded = 1;
+		public const int SmokeStatusError = -1;
+		private const int SlotFree = -2;
+		private const int RingSize = 8;
+
+		[StructLayout(LayoutKind.Sequential)]
+		private struct SmokeParameters
+		{
+			public IntPtr output_texture;
+			public uint width;
+			public uint height;
+			public uint frame_index;
+			public int status;
+		}
+
+		public readonly struct SmokeTicket
+		{
+			internal readonly int Slot;
+			internal readonly uint FrameIndex;
+
+			internal SmokeTicket(int slot, uint frameIndex)
+			{
+				Slot = slot;
+				FrameIndex = frameIndex;
+			}
+		}
+
+		public static ELinuxFeatureState State { get; private set; } = ELinuxFeatureState.Disabled;
+		public static string StateReason { get; private set; } = "Smoke Vulkan não inicializado";
+
+		public static bool Initialize()
+		{
+			if (isInitialized)
+				return eventFunction != IntPtr.Zero;
+			isInitialized = true;
+			if (SystemInfo.graphicsDeviceType != GraphicsDeviceType.Vulkan)
+			{
+				State = ELinuxFeatureState.Unsupported;
+				StateReason = "Renderer ativo não é Vulkan";
+				return false;
+			}
+			try
+			{
+				eventFunction = GetRenderEventAndDataFunc();
+				eventId = u3ffx_get_vulkan_smoke_event_id();
+				if (eventFunction == IntPtr.Zero || eventId <= 0)
+				{
+					State = ELinuxFeatureState.Error;
+					StateReason = "Plugin não forneceu callback/event ID Vulkan";
+					return false;
+				}
+				int stride = Marshal.SizeOf<SmokeParameters>();
+				ringMemory = Marshal.AllocHGlobal(stride * RingSize);
+				for (int i = 0; i < RingSize; ++i)
+				{
+					SmokeParameters parameters = new SmokeParameters() { status = SlotFree };
+					Marshal.StructureToPtr(parameters, GetSlotPointer(i), false);
+				}
+				State = ELinuxFeatureState.Disabled;
+				StateReason = "Bridge carregado; compute smoke aguardando dispatch/readback";
+				return true;
+			}
+			catch (Exception e)
+			{
+				State = ELinuxFeatureState.Error;
+				StateReason = "Falha ao inicializar bridge Vulkan: " + e.Message;
+				return false;
+			}
+		}
+
+		public static bool TryIssueSmoke(RenderTexture output, out SmokeTicket ticket)
+		{
+			ticket = default;
+			if (!Initialize() || output == null || !output.IsCreated() || !output.enableRandomWrite)
+			{
+				StateReason = "Output do smoke deve existir e usar enableRandomWrite";
+				return false;
+			}
+			IntPtr nativeTexture = output.GetNativeTexturePtr();
+			if (nativeTexture == IntPtr.Zero)
+			{
+				StateReason = "GetNativeTexturePtr retornou zero";
+				return false;
+			}
+
+			for (int attempt = 0; attempt < RingSize; ++attempt)
+			{
+				int slot = (nextSlot + attempt) % RingSize;
+				SmokeParameters existing = Marshal.PtrToStructure<SmokeParameters>(GetSlotPointer(slot));
+				if (existing.status == SmokeStatusPending)
+					continue;
+				uint frameIndex = ++nextFrameIndex;
+				SmokeParameters parameters = new SmokeParameters()
+				{
+					output_texture = nativeTexture,
+					width = (uint)output.width,
+					height = (uint)output.height,
+					frame_index = frameIndex,
+					status = SmokeStatusPending,
+				};
+				Marshal.StructureToPtr(parameters, GetSlotPointer(slot), false);
+				GL.IssuePluginEventAndData(eventFunction, eventId, GetSlotPointer(slot));
+				nextSlot = (slot + 1) % RingSize;
+				ticket = new SmokeTicket(slot, frameIndex);
+				StateReason = "Compute smoke enviado ao Render Thread";
+				return true;
+			}
+
+			StateReason = "Ring unmanaged do bridge Vulkan está cheio";
+			return false;
+		}
+
+		public static bool TryGetSmokeResult(in SmokeTicket ticket, out int status, out uint width, out uint height)
+		{
+			status = SmokeStatusError;
+			width = 0;
+			height = 0;
+			if (!isInitialized || ringMemory == IntPtr.Zero || ticket.Slot < 0 || ticket.Slot >= RingSize)
+				return false;
+			SmokeParameters parameters = Marshal.PtrToStructure<SmokeParameters>(GetSlotPointer(ticket.Slot));
+			if (parameters.frame_index != ticket.FrameIndex)
+				return false;
+			status = parameters.status;
+			width = parameters.width;
+			height = parameters.height;
+			if (status == SmokeStatusRecorded)
+			{
+				StateReason = "Compute gravado; aguardando validação do readback";
+				return true;
+			}
+			if (status == SmokeStatusError)
+			{
+				State = ELinuxFeatureState.Error;
+				StateReason = GetLastError();
+			}
+			return true;
+		}
+
+		public static bool MarkSmokeValidated()
+		{
+			try
+			{
+				if (u3ffx_mark_vulkan_smoke_validated(1) == 0)
+					return false;
+				State = ELinuxFeatureState.Available;
+				StateReason = "Bridge Vulkan compute validado por readback";
+				UpscalerManager.InvalidateBackend("Smoke Vulkan validado");
+				return true;
+			}
+			catch (Exception e)
+			{
+				State = ELinuxFeatureState.Error;
+				StateReason = "Falha ao confirmar smoke Vulkan: " + e.Message;
+				return false;
+			}
+		}
+
+		public static IEnumerator ValidateSmokeCoroutine(Action<bool, string> completed)
+		{
+			if (SystemInfo.graphicsDeviceType != GraphicsDeviceType.Vulkan)
+			{
+				completed?.Invoke(false, "Renderer ativo não é Vulkan");
+				yield break;
+			}
+
+			RenderTexture target = new RenderTexture(64, 64, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear)
+			{
+				name = "LinuxPerformance.VulkanSmokeOutput",
+				enableRandomWrite = true,
+				antiAliasing = 1,
+			};
+			Texture2D readback = null;
+			try
+			{
+				if (!target.Create())
+				{
+					completed?.Invoke(false, "Falha ao criar output do smoke Vulkan");
+					yield break;
+				}
+				RenderTexture previous = RenderTexture.active;
+				RenderTexture.active = target;
+				GL.Clear(false, true, Color.black);
+				RenderTexture.active = previous;
+				if (!TryIssueSmoke(target, out SmokeTicket ticket))
+				{
+					completed?.Invoke(false, StateReason);
+					yield break;
+				}
+
+				int status = SmokeStatusPending;
+				uint width = 0;
+				uint height = 0;
+				for (int frame = 0; frame < 60 && status == SmokeStatusPending; ++frame)
+				{
+					yield return new WaitForEndOfFrame();
+					TryGetSmokeResult(ticket, out status, out width, out height);
+				}
+				if (status != SmokeStatusRecorded || width != 64 || height != 64)
+				{
+					completed?.Invoke(false, status == SmokeStatusError ? StateReason : "Timeout aguardando compute smoke Vulkan");
+					yield break;
+				}
+
+				yield return new WaitForEndOfFrame();
+				previous = RenderTexture.active;
+				RenderTexture.active = target;
+				readback = new Texture2D(1, 1, TextureFormat.RGBA32, false, true);
+				readback.ReadPixels(new Rect(32, 32, 1, 1), 0, 0, false);
+				readback.Apply(false, false);
+				RenderTexture.active = previous;
+				Color pixel = readback.GetPixel(0, 0);
+				bool validPixel = pixel.g > 0.55f && pixel.r > 0.05f && pixel.r < 0.3f && pixel.b > 0.1f && pixel.b < 0.45f && pixel.a > 0.9f;
+				if (!validPixel || !MarkSmokeValidated())
+				{
+					completed?.Invoke(false, $"Readback inesperado: {pixel}");
+					yield break;
+				}
+				completed?.Invoke(true, StateReason);
+			}
+			finally
+			{
+				if (readback != null)
+					UnityEngine.Object.Destroy(readback);
+				target.Release();
+				UnityEngine.Object.Destroy(target);
+			}
+		}
+
+		public static void Release()
+		{
+			if (ringMemory == IntPtr.Zero)
+				return;
+			for (int i = 0; i < RingSize; ++i)
+			{
+				SmokeParameters parameters = Marshal.PtrToStructure<SmokeParameters>(GetSlotPointer(i));
+				if (parameters.status == SmokeStatusPending)
+					return;
+			}
+			Marshal.FreeHGlobal(ringMemory);
+			ringMemory = IntPtr.Zero;
+			isInitialized = false;
+		}
+
+		private static IntPtr GetSlotPointer(int slot)
+		{
+			return IntPtr.Add(ringMemory, Marshal.SizeOf<SmokeParameters>() * slot);
+		}
+
+		private static string GetLastError()
+		{
+			try
+			{
+				IntPtr value = u3ffx_get_last_error();
+				return value != IntPtr.Zero ? Marshal.PtrToStringAnsi(value) : "Erro Vulkan sem mensagem";
+			}
+			catch
+			{
+				return "Erro Vulkan sem mensagem";
+			}
+		}
+
+		[DllImport("FidelityFXLinux", CallingConvention = CallingConvention.Cdecl)]
+		private static extern IntPtr GetRenderEventAndDataFunc();
+		[DllImport("FidelityFXLinux", CallingConvention = CallingConvention.Cdecl)]
+		private static extern int u3ffx_get_vulkan_smoke_event_id();
+		[DllImport("FidelityFXLinux", CallingConvention = CallingConvention.Cdecl)]
+		private static extern IntPtr u3ffx_get_last_error();
+		[DllImport("FidelityFXLinux", CallingConvention = CallingConvention.Cdecl)]
+		private static extern int u3ffx_mark_vulkan_smoke_validated(int validated);
+
+		private static IntPtr eventFunction;
+		private static IntPtr ringMemory;
+		private static int eventId;
+		private static int nextSlot;
+		private static uint nextFrameIndex;
+		private static bool isInitialized;
+	}
+}

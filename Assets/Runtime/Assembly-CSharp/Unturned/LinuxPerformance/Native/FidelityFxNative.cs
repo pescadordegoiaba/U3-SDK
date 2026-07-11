@@ -9,7 +9,7 @@ namespace SDG.Unturned.LinuxPerformance
 {
 	public static class NativeRenderBackend
 	{
-		public const int ExpectedAbiVersion = 2;
+		public const int ExpectedAbiVersion = 3;
 
 		public struct PluginCapabilities
 		{

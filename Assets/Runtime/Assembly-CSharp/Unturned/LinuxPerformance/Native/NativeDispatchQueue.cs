@@ -6,7 +6,7 @@ namespace SDG.Unturned.LinuxPerformance
 {
 	public static class NativeDispatchQueue
 	{
-		public static ELinuxFeatureState State => ELinuxFeatureState.Unsupported;
-		public static string StateReason => "Fila de dispatch nativa depende do bridge IUnityGraphicsVulkan ABI v2; ainda não validada.";
+		public static ELinuxFeatureState State => NativeVulkanBridge.State;
+		public static string StateReason => NativeVulkanBridge.StateReason;
 	}
 }
