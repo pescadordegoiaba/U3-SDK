@@ -64,14 +64,20 @@ namespace SDG.Unturned.LinuxPerformance
 		public void PrepareCamera(Camera camera, ref TemporalFrameContext frame) { }
 		public bool Dispatch(ref TemporalFrameContext frame)
 		{
+			return DispatchInternal(ref frame, null);
+		}
+
+		private bool DispatchInternal(ref TemporalFrameContext frame, RenderTexture presentationTarget)
+		{
 			if (!TemporalInputCollector.IsReadyForTemporalUpscaling(frame, out string readinessReason))
 			{
-				// Resize/troca de câmera pode deixar depth ou motion vectors
-				// indisponíveis por um frame. Fazer fallback sem matar o backend.
 				StateReason = readinessReason;
 				return false;
 			}
-			if (!FidelityFxFsr2Native.Dispatch(ref frame))
+			bool submitted = presentationTarget == null
+				? FidelityFxFsr2Native.Dispatch(ref frame)
+				: FidelityFxFsr2Native.DispatchAndPresent(ref frame, presentationTarget);
+			if (!submitted)
 			{
 				string reason = FidelityFxFsr2Native.LastError;
 				if (IsTransientDispatchFailure(reason))
@@ -102,8 +108,16 @@ namespace SDG.Unturned.LinuxPerformance
 			if (!TemporalInputCollector.HasCurrentFrame)
 				return false;
 			TemporalFrameContext frame = TemporalInputCollector.CurrentFrame;
+			LowResolutionWorldRenderer lowResolution = LowResolutionWorldRenderer.Instance;
+			RenderTexture nativeOutput = lowResolution != null ? lowResolution.Fsr2NativeOutput : null;
+			if (nativeOutput == null || !nativeOutput.IsCreated() || destination == null || !destination.IsCreated()
+				|| nativeOutput.width != destination.width || nativeOutput.height != destination.height || nativeOutput == destination)
+			{
+				StateReason = "Output compute/apresentação FSR2 inválido ou não separado";
+				return false;
+			}
 			frame.Color = source;
-			frame.Output = destination;
+			frame.Output = nativeOutput;
 			if (!FidelityFxFsr2Native.IsCreated)
 			{
 				TemporalBackendDescription description = new TemporalBackendDescription()
@@ -123,7 +137,7 @@ namespace SDG.Unturned.LinuxPerformance
 					return false;
 				}
 			}
-			return Dispatch(ref frame);
+			return DispatchInternal(ref frame, destination);
 		}
 
 		private static bool IsTransientDispatchFailure(string reason)

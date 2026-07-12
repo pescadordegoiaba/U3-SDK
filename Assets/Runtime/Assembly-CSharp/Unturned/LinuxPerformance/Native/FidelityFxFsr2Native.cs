@@ -131,6 +131,16 @@ namespace SDG.Unturned.LinuxPerformance
 
 		public static bool Dispatch(ref TemporalFrameContext frame)
 		{
+			return DispatchInternal(ref frame, null);
+		}
+
+		public static bool DispatchAndPresent(ref TemporalFrameContext frame, RenderTexture presentationTarget)
+		{
+			return DispatchInternal(ref frame, presentationTarget);
+		}
+
+		private static bool DispatchInternal(ref TemporalFrameContext frame, RenderTexture presentationTarget)
+		{
 			if (!IsCreated)
 			{
 				LastError = "Contexto FSR2 não criado";
@@ -201,7 +211,14 @@ namespace SDG.Unturned.LinuxPerformance
 				}
 				Marshal.StructureToPtr(parameters, pointer, false);
 				eventCommands.Clear();
+				// O output recebe primeiro o frame atual por bilinear. Se o callback nativo
+				// falhar, nunca apresentamos memória antiga ou um frame congelado.
+				eventCommands.Blit(frame.Color, frame.Output);
 				eventCommands.IssuePluginEventAndData(eventFunction, eventId, pointer);
+				// A cópia no mesmo CommandBuffer força a ordem Vulkan:
+				// fallback atual -> dispatch FSR2 -> transição/leitura -> apresentação.
+				if (presentationTarget != null && presentationTarget != frame.Output)
+					eventCommands.Blit(frame.Output, presentationTarget);
 				Graphics.ExecuteCommandBuffer(eventCommands);
 				parameters = Marshal.PtrToStructure<DispatchParameters>(pointer);
 				if (parameters.status < 0)

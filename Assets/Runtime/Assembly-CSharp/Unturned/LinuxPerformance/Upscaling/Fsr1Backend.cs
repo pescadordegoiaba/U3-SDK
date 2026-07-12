@@ -45,9 +45,9 @@ namespace SDG.Unturned.LinuxPerformance
 		public bool Render(RenderTexture source, RenderTexture destination, in PerformanceSettings settings, in PerformanceTelemetry.FrameSnapshot telemetry)
 		{
 			EnsureMaterial();
-			if (material == null || source == null || destination == null || source.width <= 0 || source.height <= 0 || destination.width <= 0 || destination.height <= 0)
-				return false;
-			if (material.passCount < 2)
+			if (material == null || material.shader == null || !material.shader.isSupported || material.passCount < 2
+				|| source == null || destination == null || !source.IsCreated() || !destination.IsCreated()
+				|| source.width <= 0 || source.height <= 0 || destination.width <= 0 || destination.height <= 0)
 				return false;
 			if (!ShouldRenderForResolution(source.width, source.height, destination.width, destination.height, IsForceDiagnosticEnabled()))
 			{
@@ -55,22 +55,24 @@ namespace SDG.Unturned.LinuxPerformance
 				return false;
 			}
 
+			RenderTextureDescriptor descriptor = destination.descriptor;
+			descriptor.depthBufferBits = 0;
+			descriptor.msaaSamples = 1;
+			descriptor.bindMS = false;
+			descriptor.enableRandomWrite = false;
+			descriptor.useMipMap = false;
+			descriptor.autoGenerateMips = false;
+			descriptor.volumeDepth = 1;
+			if (!EnsureIntermediate(descriptor))
+				return false;
+
 			material.SetVector(sourceSizeId, new Vector4(source.width, source.height, 1.0f / source.width, 1.0f / source.height));
 			material.SetVector(outputSizeId, new Vector4(destination.width, destination.height, 1.0f / destination.width, 1.0f / destination.height));
 			material.SetFloat(sharpnessId, settings.RcasSharpness);
 
-			RenderTextureDescriptor descriptor = source.descriptor;
-			descriptor.depthBufferBits = 0;
-			descriptor.width = destination.width;
-			descriptor.height = destination.height;
-			descriptor.msaaSamples = 1;
-			descriptor.useMipMap = false;
-			descriptor.autoGenerateMips = false;
-			RenderTexture intermediate = null;
 			bool oldSrgbWrite = GL.sRGBWrite;
 			try
 			{
-				intermediate = RenderTargetPool.Get(descriptor, "FSR1_EASU");
 				using (easuMarker.Auto())
 				{
 					SetSrgbWriteForTarget(intermediate);
@@ -95,8 +97,6 @@ namespace SDG.Unturned.LinuxPerformance
 			finally
 			{
 				GL.sRGBWrite = oldSrgbWrite;
-				if (intermediate != null)
-					RenderTargetPool.Release(intermediate);
 			}
 			return true;
 		}
@@ -108,6 +108,7 @@ namespace SDG.Unturned.LinuxPerformance
 				UnityEngine.Object.Destroy(material);
 				material = null;
 			}
+			DestroyIntermediate();
 		}
 
 		private void EnsureMaterial()
@@ -116,11 +117,50 @@ namespace SDG.Unturned.LinuxPerformance
 				return;
 
 			Shader shader = Shader.Find("Hidden/Unturned/LinuxPerformance/FSR1");
-			if (shader != null)
+			if (shader == null || !shader.isSupported)
 			{
-				material = new Material(shader);
-				material.hideFlags = HideFlags.HideAndDontSave;
+				State = ELinuxFeatureState.Unsupported;
+				StateReason = shader == null ? "Shader FSR1 não encontrado" : "Shader FSR1 não suportado pela API/GPU ativa";
+				return;
 			}
+			material = new Material(shader);
+			material.hideFlags = HideFlags.HideAndDontSave;
+			if (material.passCount < 2)
+			{
+				UnityEngine.Object.Destroy(material);
+				material = null;
+				State = ELinuxFeatureState.Unsupported;
+				StateReason = "Shader FSR1 compilou sem os passes EASU/RCAS";
+			}
+		}
+
+		private bool EnsureIntermediate(RenderTextureDescriptor descriptor)
+		{
+			if (intermediate != null && intermediate.IsCreated()
+				&& intermediate.width == descriptor.width && intermediate.height == descriptor.height
+				&& intermediate.graphicsFormat == descriptor.graphicsFormat)
+				return true;
+			DestroyIntermediate();
+			intermediate = new RenderTexture(descriptor)
+			{
+				name = "LinuxPerformance.FSR1_EASU",
+				filterMode = FilterMode.Bilinear,
+				wrapMode = TextureWrapMode.Clamp,
+				hideFlags = HideFlags.HideAndDontSave,
+			};
+			if (intermediate.Create())
+				return true;
+			DestroyIntermediate();
+			return false;
+		}
+
+		private void DestroyIntermediate()
+		{
+			if (intermediate == null)
+				return;
+			intermediate.Release();
+			UnityEngine.Object.Destroy(intermediate);
+			intermediate = null;
 		}
 
 		private static bool IsForceDiagnosticEnabled()
@@ -161,6 +201,7 @@ namespace SDG.Unturned.LinuxPerformance
 		}
 
 		private Material material;
+		private RenderTexture intermediate;
 		private static readonly int sourceSizeId = Shader.PropertyToID("_SourceSize");
 		private static readonly int outputSizeId = Shader.PropertyToID("_OutputSize");
 		private static readonly int sharpnessId = Shader.PropertyToID("_Sharpness");

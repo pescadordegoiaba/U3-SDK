@@ -25,7 +25,6 @@ Shader "Hidden/Unturned/LinuxPerformance/FSR1"
 		#define FSR_RCAS_LIMIT (0.25 - (1.0 / 16.0))
 
 		sampler2D _MainTex;
-		float4 _MainTex_TexelSize;
 		float4 _SourceSize; // xy = input size, zw = input texel size
 		float4 _OutputSize; // xy = output size, zw = output texel size
 		float _Sharpness;
@@ -47,10 +46,6 @@ Shader "Hidden/Unturned/LinuxPerformance/FSR1"
 			v2f o;
 			o.vertex = UnityObjectToClipPos(v.vertex);
 			o.uv = v.uv;
-			#if UNITY_UV_STARTS_AT_TOP
-			if (_MainTex_TexelSize.y < 0.0)
-				o.uv.y = 1.0 - o.uv.y;
-			#endif
 			return o;
 		}
 
@@ -142,9 +137,7 @@ Shader "Hidden/Unturned/LinuxPerformance/FSR1"
 
 		float4 FsrEasu(float2 uv)
 		{
-			// EASU espera índice inteiro do pixel. O centro UV adicionava
-			// meio pixel e causava deslocamento/blur.
-			float2 outputPixel = min(floor(saturate(uv) * _OutputSize.xy), _OutputSize.xy - 1.0);
+			float2 outputPixel = uv * _OutputSize.xy;
 
 			float inputViewportX = _SourceSize.x;
 			float inputViewportY = _SourceSize.y;
@@ -219,8 +212,7 @@ Shader "Hidden/Unturned/LinuxPerformance/FSR1"
 			EasuTap(aC, aW, float2(1.0, 2.0) - pp, dir, len2, lob, clp, o.rgb);
 			EasuTap(aC, aW, float2(0.0, 2.0) - pp, dir, len2, lob, clp, n.rgb);
 
-			float3 easuRgb = aW > 1.0e-6 ? aC * ApproxRcp(aW) : f.rgb;
-			float3 rgb = max(0.0, min(max4, max(min4, easuRgb)));
+			float3 rgb = min(max4, max(min4, aC * ApproxRcp(aW)));
 			float alpha = saturate((f.a + g.a + j.a + k.a) * 0.25);
 			return float4(rgb, alpha);
 		}
@@ -264,7 +256,7 @@ Shader "Hidden/Unturned/LinuxPerformance/FSR1"
 			float sharpness = exp2(-sharpnessStops);
 			float lobe = max(-FSR_RCAS_LIMIT, min(max(lobeRgb.r, max(lobeRgb.g, lobeRgb.b)), 0.0)) * sharpness * nz;
 			float rcpL = rcp(4.0 * lobe + 1.0);
-			float3 rgb = max(0.0, (lobe * b4.rgb + lobe * d4.rgb + lobe * h4.rgb + lobe * f4.rgb + e4.rgb) * rcpL);
+			float3 rgb = (lobe * b4.rgb + lobe * d4.rgb + lobe * h4.rgb + lobe * f4.rgb + e4.rgb) * rcpL;
 			return float4(rgb, e4.a);
 		}
 		ENDCG

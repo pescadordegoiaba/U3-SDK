@@ -163,11 +163,17 @@ namespace SDG.Framework.Rendering
 
 			if (isLowResolutionPath)
 			{
+				// Graphics.Blit(..., null) pode voltar para os buffers customizados se
+				// a câmera ainda estiver ligada ao SetTargetBuffers. Restaurar antes evita
+				// feedback, tela dividida e frame antigo sobreposto.
+				LowResolutionWorldRenderer.CompleteFrame(cachedCamera);
 				if (finalTarget != null && finalTarget.IsCreated()
+					&& LowResolutionWorldRenderer.Instance != null
 					&& finalTarget.width == LowResolutionWorldRenderer.Instance.OutputWidth
 					&& finalTarget.height == LowResolutionWorldRenderer.Instance.OutputHeight)
 				{
-					Graphics.Blit(finalTarget, destination);
+					if (finalTarget != destination)
+						Graphics.Blit(finalTarget, destination);
 				}
 				else
 				{
