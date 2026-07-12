@@ -59,7 +59,9 @@ namespace SDG.Unturned
 				writer.WriteBit(Provider.isPvP);
 				writer.WriteBit(Provider.hasCheats);
 				writer.WriteBit(Provider.isVacActive);
+#if WITH_THIRDPARTYAC
 				writer.WriteBit(Provider.isThirdpartyAntiCheatActive);
+#endif // WITH_THIRDPARTYAC
 				writer.WriteBit(Provider.isGold);
 				writer.WriteEnum(Provider.mode);
 				writer.WriteEnum(Provider.cameraMode);

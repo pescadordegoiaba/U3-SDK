@@ -15,6 +15,11 @@ namespace SDG.Unturned.LinuxPerformance
 
 		public bool IsAvailable(in LinuxGraphicsCapabilities capabilities)
 		{
+			if (fatalDiagnosticFailure)
+			{
+				StateReason = "FSR 2 diagnóstico desativado após falha fatal: " + fatalDiagnosticReason;
+				return false;
+			}
 			if (!capabilities.NativePluginLoaded)
 			{
 				StateReason = capabilities.NativePluginStatus;
@@ -25,25 +30,28 @@ namespace SDG.Unturned.LinuxPerformance
 				StateReason = "FSR 2 nativo está disponível apenas no caminho Vulkan/Linux";
 				return false;
 			}
-			if (!capabilities.NativePluginHasVulkanBackend || !capabilities.NativePluginHasFsr2)
+			bool diagnostic = LinuxPerformanceBootstrap.IsFsr2DiagnosticForced;
+			if (!capabilities.NativePluginHasVulkanBackend || (!capabilities.NativePluginHasFsr2 && !diagnostic))
 			{
 				StateReason = "Plugin nativo carregado, mas classificado como plugin de capacidades: não expõe backend Vulkan/FSR 2 funcional";
 				return false;
 			}
-			if (MotionVectorValidator.State != ELinuxFeatureState.Available)
+			if (MotionVectorValidator.State != ELinuxFeatureState.Available && !diagnostic)
 			{
 				StateReason = MotionVectorValidator.StateReason;
 				return false;
 			}
 
 			State = ELinuxFeatureState.Available;
-			StateReason = "FSR 2 Vulkan e inputs temporais validados";
+			StateReason = diagnostic
+				? "FSR 2 Vulkan em tentativa diagnóstica; capability permanece falsa"
+				: "FSR 2 Vulkan e inputs temporais validados";
 			return true;
 		}
 
 		public bool Initialize(in TemporalBackendDescription description)
 		{
-			if (!description.MotionVectorsValidated)
+			if (!description.MotionVectorsValidated && !LinuxPerformanceBootstrap.IsFsr2DiagnosticForced)
 			{
 				StateReason = MotionVectorValidator.StateReason;
 				return false;
@@ -78,6 +86,25 @@ namespace SDG.Unturned.LinuxPerformance
 			TemporalFrameContext frame = TemporalInputCollector.CurrentFrame;
 			frame.Color = source;
 			frame.Output = destination;
+			if (!FidelityFxFsr2Native.IsCreated)
+			{
+				TemporalBackendDescription description = new TemporalBackendDescription()
+				{
+					RenderWidth = source.width,
+					RenderHeight = source.height,
+					OutputWidth = destination.width,
+					OutputHeight = destination.height,
+					Hdr = frame.Hdr,
+					InvertedDepth = frame.InvertedDepth,
+					MotionVectorsValidated = MotionVectorValidator.State == ELinuxFeatureState.Available || LinuxPerformanceBootstrap.IsFsr2DiagnosticForced,
+					GraphicsCapabilities = UpscalerManager.Graphics,
+				};
+				if (!Initialize(description))
+				{
+					FailFatal(StateReason);
+					return false;
+				}
+			}
 			return Dispatch(ref frame);
 		}
 
@@ -85,8 +112,16 @@ namespace SDG.Unturned.LinuxPerformance
 		{
 			State = ELinuxFeatureState.Error;
 			StateReason = reason;
+			if (LinuxPerformanceBootstrap.IsFsr2DiagnosticForced)
+			{
+				fatalDiagnosticFailure = true;
+				fatalDiagnosticReason = reason;
+			}
 			FidelityFxFsr2Native.Release();
 			UpscalerManager.InvalidateBackend("Falha fatal FSR2: " + reason);
 		}
+
+		private bool fatalDiagnosticFailure;
+		private string fatalDiagnosticReason;
 	}
 }

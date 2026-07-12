@@ -67,7 +67,7 @@ namespace SDG.Unturned.LinuxPerformance
 
 		public static bool TryCreate(in TemporalBackendDescription description)
 		{
-			if (!description.MotionVectorsValidated || !NativeVulkanBridge.IsSmokeValidated)
+			if ((!description.MotionVectorsValidated && !LinuxPerformanceBootstrap.IsFsr2DiagnosticForced) || !NativeVulkanBridge.IsSmokeValidated)
 			{
 				LastError = !description.MotionVectorsValidated ? MotionVectorValidator.StateReason : "Compute smoke Vulkan ainda não validado";
 				return false;

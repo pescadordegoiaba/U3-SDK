@@ -12,6 +12,7 @@ namespace SDG.Unturned.LinuxPerformance
 	public sealed class LinuxPerformanceBootstrap : MonoBehaviour
 	{
 		public static bool IsDisableAllRequested => disableAllRequested;
+		public static bool IsFsr2DiagnosticForced => forceFsr2Requested && !disableAllRequested;
 
 		public static LinuxPerformanceBootstrap GetOrCreate(GameObject host)
 		{
@@ -48,6 +49,7 @@ namespace SDG.Unturned.LinuxPerformance
 
 		private IEnumerator Start()
 		{
+			ApplyTemporalDebugCommandLine();
 			if (ShouldRunVulkanSmoke(Environment.GetCommandLineArgs()) && SystemInfo.graphicsDeviceType == UnityEngine.Rendering.GraphicsDeviceType.Vulkan)
 			{
 				bool smokePassed = false;
@@ -63,10 +65,23 @@ namespace SDG.Unturned.LinuxPerformance
 					UnturnedLog.warn("Linux Performance: smoke Vulkan não validado: {0}", smokeReason);
 			}
 
-			if (!HasCommandLineArg("-LinuxPerformanceCapture"))
+			bool captureStartup = HasCommandLineArg("-LinuxPerformanceCapture");
+			bool captureGameplay = HasCommandLineArg("-LinuxPerformanceCaptureGameplay");
+			if (!captureStartup && !captureGameplay)
 				yield break;
 
-			yield return new WaitForSecondsRealtime(10.0f);
+			if (captureGameplay)
+			{
+				float deadline = Time.realtimeSinceStartup + 180.0f;
+				while ((!Level.isLoaded || Player.LocalPlayer == null || LoadingUI.isBlocked) && Time.realtimeSinceStartup < deadline)
+					yield return null;
+				if (!Level.isLoaded || Player.LocalPlayer == null || LoadingUI.isBlocked)
+				{
+					UnturnedLog.error("Linux Performance: timeout aguardando gameplay para captura");
+					yield break;
+				}
+			}
+			yield return new WaitForSecondsRealtime(captureGameplay ? 5.0f : 10.0f);
 			string captureDirectory = Path.GetFullPath(Path.Combine(Application.dataPath, "..", "Benchmark", "Captures"));
 			Directory.CreateDirectory(captureDirectory);
 			string capturePath = Path.Combine(captureDirectory, "linux-performance-capture.png");
@@ -74,6 +89,28 @@ namespace SDG.Unturned.LinuxPerformance
 			UnturnedLog.info("Captura Linux Performance solicitada por linha de comando: {0}", capturePath);
 			yield return new WaitForSecondsRealtime(2.0f);
 			Application.Quit(0);
+		}
+
+		private static void ApplyTemporalDebugCommandLine()
+		{
+			string[] args = Environment.GetCommandLineArgs();
+			const string prefix = "-LinuxPerformanceTemporalDebug=";
+			for (int index = 0; index < args.Length; ++index)
+			{
+				if (!args[index].StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+					continue;
+				string value = args[index].Substring(prefix.Length);
+				if (Enum.TryParse(value, true, out ETemporalDebugView view))
+				{
+					TemporalDebugViews.ActiveView = view;
+					UnturnedLog.info("Linux Performance: debug temporal {0} ativado por linha de comando", view);
+				}
+				else
+				{
+					UnturnedLog.warn("Linux Performance: debug temporal desconhecido: {0}", value);
+				}
+				return;
+			}
 		}
 
 		private void Update()
@@ -95,6 +132,14 @@ namespace SDG.Unturned.LinuxPerformance
 				GraphicsSettings.LinuxRcasSharpness = 0.2f;
 				GraphicsSettings.LinuxDynamicResolution = false;
 				UnturnedLog.info("Linux Performance: FSR 1 Quality forçado por linha de comando");
+			}
+			else if (forceFsr2Requested)
+			{
+				GraphicsSettings.LinuxUpscalerMode = ELinuxUpscalerMode.Fsr2;
+				GraphicsSettings.LinuxFsrQualityPreset = EFsrQualityPreset.Quality;
+				GraphicsSettings.LinuxDynamicResolution = false;
+				GraphicsSettings.LinuxMotionAdaptiveResolution = false;
+				UnturnedLog.info("Linux Performance: tentativa diagnóstica FSR 2 Quality forçada por linha de comando; capability permanece desativada até validação visual");
 			}
 			else if (HasCommandLineArg("-LinuxPerformanceForceNative"))
 			{
@@ -118,6 +163,42 @@ namespace SDG.Unturned.LinuxPerformance
 
 			if (HasCommandLineArg("-LinuxPerformanceDebugOverlay"))
 				GraphicsSettings.LinuxDebugOverlay = true;
+		}
+
+		internal static void ApplyCommandLineOverrides(ref PerformanceSettings settings)
+		{
+			if (disableAllRequested || forceNativeRequested)
+			{
+				settings.UpscalerMode = ELinuxUpscalerMode.Off;
+				settings.DynamicResolution = false;
+				settings.MotionAdaptiveResolution = false;
+				settings.LowLatencyMode = false;
+				settings.CullingProfile = ELinuxCullingProfile.Original;
+				settings.CasEnabled = false;
+				settings.CacaoEnabled = false;
+				settings.SssrExperimental = false;
+				settings.DebugOverlay = false;
+				return;
+			}
+			if (forceFsr1Requested)
+			{
+				settings.UpscalerMode = ELinuxUpscalerMode.Fsr1;
+				settings.FsrQualityPreset = EFsrQualityPreset.Quality;
+				settings.RcasSharpness = 0.2f;
+				settings.DynamicResolution = false;
+				settings.MotionAdaptiveResolution = false;
+			}
+			else if (forceFsr2Requested)
+			{
+				settings.UpscalerMode = ELinuxUpscalerMode.Fsr2;
+				settings.FsrQualityPreset = EFsrQualityPreset.Quality;
+				settings.DynamicResolution = false;
+				settings.MotionAdaptiveResolution = false;
+			}
+			if (disableDynamicResolutionRequested)
+				settings.DynamicResolution = false;
+			if (debugOverlayRequested)
+				settings.DebugOverlay = true;
 		}
 
 		internal static bool ShouldRunVulkanSmoke(string[] args)
@@ -195,5 +276,10 @@ namespace SDG.Unturned.LinuxPerformance
 
 		private Camera cameraComponent;
 		private static readonly bool disableAllRequested = HasCommandLineArg(Environment.GetCommandLineArgs(), "-LinuxPerformanceDisableAll");
+		private static readonly bool forceNativeRequested = HasCommandLineArg(Environment.GetCommandLineArgs(), "-LinuxPerformanceForceNative");
+		private static readonly bool forceFsr1Requested = HasCommandLineArg(Environment.GetCommandLineArgs(), "-LinuxPerformanceForceFsr1");
+		private static readonly bool forceFsr2Requested = HasCommandLineArg(Environment.GetCommandLineArgs(), "-LinuxPerformanceForceFsr2");
+		private static readonly bool disableDynamicResolutionRequested = HasCommandLineArg(Environment.GetCommandLineArgs(), "-LinuxPerformanceDisableDynamicResolution");
+		private static readonly bool debugOverlayRequested = HasCommandLineArg(Environment.GetCommandLineArgs(), "-LinuxPerformanceDebugOverlay");
 	}
 }

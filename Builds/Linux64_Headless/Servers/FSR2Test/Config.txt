@@ -1,0 +1,889 @@
+﻿// > Unturned Server Configuration File
+// > 
+// > Lines beginning with // are comments.
+// > Comments beginning with > are auto-generated.
+// > Any comments you write (without >) will be preserved.
+// > 
+// > Settings without a value use the default for the mode (easy/normal/hard).
+// > For example, this setting would use the default:
+// > 
+// > Setting
+// > 
+// > Whereas this setting is overridden with value four:
+// > 
+// > Setting 4
+// > 
+Version 1
+
+Browser
+{
+	Icon
+
+	Thumbnail
+
+	Desc_Hint
+
+	Desc_Full
+
+	Desc_Server_List
+
+	Login_Token
+
+	BookmarkHost
+
+	// > Default: False
+	Is_Using_Anycast_Proxy
+
+	// > Options: Unspecified, Any, None, NonGameplay, Monetized
+	// > Default: Unspecified
+	Monetization
+
+	Links
+}
+
+Server
+{
+	// > Default: True
+	VAC_Secure
+
+	// > Default: 750
+	Max_Ping_Milliseconds
+
+	// > Default: 15
+	Timeout_Queue_Seconds
+
+	// > Default: 30
+	Timeout_Game_Seconds
+
+	// > Default: 0
+	Max_Packets_Per_Second
+
+	// > Default: 40
+	Join_Rate_Limit_Window_Seconds
+
+	// > Default: 2.5
+	Bad_Packet_Rate_Limit_Window_Seconds
+
+	// > Default: 10
+	Bad_Packet_Rate_Limit_Threshold
+
+	// > Default: 10
+	Rate_Limit_Kick_Threshold
+
+	// > Default: 64
+	Max_Clients_With_Same_IP_Address
+
+	// > Default: True
+	Max_Clients_With_Same_IP_Address_Log_Warnings
+
+	// > Default: 3
+	Fake_Lag_Threshold_Seconds
+
+	// > Default: False
+	Fake_Lag_Log_Warnings
+
+	// > Default: 0.1
+	Fake_Lag_Damage_Penalty_Multiplier
+
+	// > Default: False
+	Enable_Kick_Input_Spam
+
+	// > Default: False
+	Enable_Kick_Input_Timeout
+
+	// > Default: False
+	Enable_Scheduled_Shutdown
+
+	// > Default: 1:30 am
+	Scheduled_Shutdown_Time
+
+	Scheduled_Shutdown_Warnings
+
+	// > Default: False
+	Enable_Update_Shutdown
+
+	// > Default: public
+	Update_Steam_Beta_Name
+
+	Update_Shutdown_Warnings
+
+	// > Default: False
+	Chat_Always_Use_Rich_Text
+
+	// > Default: True
+	Validate_EconInfo_Hash
+
+	// > Default: False
+	Use_FakeIP
+
+	// > Default: 40000
+	Reset_Vehicles_Outside_Horizontal_Distance
+}
+
+UnityEvents
+{
+	// > Default: False
+	Allow_Server_Messages
+
+	// > Default: False
+	Allow_Server_Commands
+
+	// > Default: False
+	Allow_Client_Messages
+
+	// > Default: False
+	Allow_Client_Commands
+}
+
+Items
+{
+	// > Easy: 0.35    Normal: 0.35    Hard: 0.15
+	Spawn_Chance
+
+	// > Default: 600
+	Despawn_Dropped_Time
+
+	// > Default: 900
+	Despawn_Natural_Time
+
+	// > Easy: 50    Normal: 100    Hard: 150
+	Respawn_Time
+
+	// > Easy: 0.1    Normal: 0.1    Hard: 0.01
+	Quality_Full_Chance
+
+	// > Default: 1
+	Quality_Multiplier
+
+	// > Easy: 0.1    Normal: 0.05    Hard: 0.025
+	Gun_Bullets_Full_Chance
+
+	// > Easy: 1    Normal: 0.25    Hard: 0.1
+	Gun_Bullets_Multiplier
+
+	// > Easy: 0.1    Normal: 0.05    Hard: 0.025
+	Magazine_Bullets_Full_Chance
+
+	// > Easy: 1    Normal: 0.5    Hard: 0.25
+	Magazine_Bullets_Multiplier
+
+	// > Easy: 0.1    Normal: 0.05    Hard: 0.025
+	Crate_Bullets_Full_Chance
+
+	// > Easy: 1    Normal: 1    Hard: 0.75
+	Crate_Bullets_Multiplier
+
+	// > Easy: False    Normal: True    Hard: True
+	Has_Durability
+
+	// > Easy: True    Normal: False    Hard: False
+	Food_Spawns_At_Full_Quality
+
+	// > Easy: True    Normal: False    Hard: False
+	Water_Spawns_At_Full_Quality
+
+	// > Easy: True    Normal: False    Hard: False
+	Clothing_Spawns_At_Full_Quality
+
+	// > Easy: True    Normal: False    Hard: False
+	Weapons_Spawn_At_Full_Quality
+
+	// > Easy: True    Normal: False    Hard: False
+	Default_Spawns_At_Full_Quality
+
+	// > Easy: False    Normal: True    Hard: True
+	Clothing_Has_Durability
+
+	// > Easy: False    Normal: True    Hard: True
+	Weapons_Have_Durability
+}
+
+Vehicles
+{
+	// > Default: 604800
+	Decay_Time
+
+	// > Default: 0.1
+	Decay_Damage_Per_Second
+
+	// > Easy: 1    Normal: 0.8    Hard: 0.25
+	Has_Battery_Chance
+
+	// > Easy: 0.8    Normal: 0.5    Hard: 0.1
+	Min_Battery_Charge
+
+	// > Easy: 1    Normal: 0.75    Hard: 0.3
+	Max_Battery_Charge
+
+	// > Easy: 1    Normal: 0.85    Hard: 0.7
+	Has_Tire_Chance
+
+	// > Default: 300
+	Respawn_Time
+
+	// > Default: 3600
+	Unlocked_After_Seconds_In_Safezone
+
+	// > Default: 1
+	Armor_Multiplier
+
+	// > Default: 1
+	Child_Explosion_Armor_Multiplier
+
+	// > Default: 1
+	Gun_Lowcal_Damage_Multiplier
+
+	// > Default: 1
+	Gun_Highcal_Damage_Multiplier
+
+	// > Default: 1
+	Melee_Damage_Multiplier
+
+	// > Default: 1
+	Melee_Repair_Multiplier
+
+	// > Default: 4
+	Max_Instances_Tiny
+
+	// > Default: 8
+	Max_Instances_Small
+
+	// > Default: 16
+	Max_Instances_Medium
+
+	// > Default: 32
+	Max_Instances_Large
+
+	// > Default: 64
+	Max_Instances_Insane
+
+	// > Default: 16
+	Min_Natural_Vehicles
+}
+
+Zombies
+{
+	// > Easy: 0.2    Normal: 0.25    Hard: 0.3
+	Spawn_Chance
+
+	// > Easy: 0.55    Normal: 0.5    Hard: 0.3
+	Loot_Chance
+
+	// > Easy: 0    Normal: 0.15    Hard: 0.125
+	Crawler_Chance
+
+	// > Easy: 0    Normal: 0.15    Hard: 0.175
+	Sprinter_Chance
+
+	// > Easy: 0    Normal: 0.025    Hard: 0.05
+	Flanker_Chance
+
+	// > Easy: 0    Normal: 0.025    Hard: 0.05
+	Burner_Chance
+
+	// > Easy: 0    Normal: 0.025    Hard: 0.05
+	Acid_Chance
+
+	// > Default: 0
+	Boss_Electric_Chance
+
+	// > Default: 0
+	Boss_Wind_Chance
+
+	// > Default: 0
+	Boss_Fire_Chance
+
+	// > Default: 0
+	Spirit_Chance
+
+	// > Default: 0
+	DL_Red_Volatile_Chance
+
+	// > Default: 0
+	DL_Blue_Volatile_Chance
+
+	// > Default: 0
+	Boss_Elver_Stomper_Chance
+
+	// > Default: 0
+	Boss_Kuwait_Chance
+
+	// > Default: 360
+	Respawn_Day_Time
+
+	// > Default: 30
+	Respawn_Night_Time
+
+	// > Default: 0
+	Respawn_Beacon_Time
+
+	// > Default: 600
+	Quest_Boss_Respawn_Interval
+
+	// > Easy: 0.75    Normal: 1    Hard: 1.5
+	Damage_Multiplier
+
+	// > Easy: 1.25    Normal: 1    Hard: 0.75
+	Armor_Multiplier
+
+	// > Default: 1.25
+	Backstab_Multiplier
+
+	// > Default: 1
+	NonHeadshot_Armor_Multiplier
+
+	// > Default: 1
+	Beacon_Experience_Multiplier
+
+	// > Default: 2
+	Full_Moon_Experience_Multiplier
+
+	// > Default: 1
+	Min_Drops
+
+	// > Default: 1
+	Max_Drops
+
+	// > Default: 5
+	Min_Mega_Drops
+
+	// > Default: 5
+	Max_Mega_Drops
+
+	// > Default: 8
+	Min_Boss_Drops
+
+	// > Default: 10
+	Max_Boss_Drops
+
+	// > Easy: True    Normal: False    Hard: False
+	Slow_Movement
+
+	// > Easy: True    Normal: True    Hard: False
+	Can_Stun
+
+	// > Easy: False    Normal: False    Hard: True
+	Only_Critical_Stuns
+
+	// > Easy: False    Normal: False    Hard: True
+	Weapons_Use_Player_Damage
+
+	// > Default: True
+	Can_Target_Barricades
+
+	// > Default: True
+	Can_Target_Structures
+
+	// > Default: True
+	Can_Target_Vehicles
+
+	// > Default: True
+	Can_Target_Objects
+
+	// > Default: 0
+	Beacon_Max_Rewards
+
+	// > Default: 0
+	Beacon_Max_Participants
+
+	// > Default: 1
+	Beacon_Rewards_Multiplier
+}
+
+Animals
+{
+	// > Default: 180
+	Respawn_Time
+
+	// > Easy: 0.75    Normal: 1    Hard: 1.5
+	Damage_Multiplier
+
+	// > Easy: 1.25    Normal: 1    Hard: 0.75
+	Armor_Multiplier
+
+	// > Default: 4
+	Max_Instances_Tiny
+
+	// > Default: 8
+	Max_Instances_Small
+
+	// > Default: 16
+	Max_Instances_Medium
+
+	// > Default: 32
+	Max_Instances_Large
+
+	// > Default: 64
+	Max_Instances_Insane
+
+	// > Easy: False    Normal: False    Hard: True
+	Weapons_Use_Player_Damage
+}
+
+Barricades
+{
+	// > Default: 604800
+	Decay_Time
+
+	// > Default: 1
+	Armor_Lowtier_Multiplier
+
+	// > Default: 0.5
+	Armor_Hightier_Multiplier
+
+	// > Default: 1
+	Gun_Lowcal_Damage_Multiplier
+
+	// > Default: 1
+	Gun_Highcal_Damage_Multiplier
+
+	// > Default: 1
+	Melee_Damage_Multiplier
+
+	// > Default: 1
+	Melee_Repair_Multiplier
+
+	// > Default: True
+	Allow_Item_Placement_On_Vehicle
+
+	// > Default: True
+	Allow_Trap_Placement_On_Vehicle
+
+	// > Default: 64
+	Max_Item_Distance_From_Hull
+
+	// > Default: 16
+	Max_Trap_Distance_From_Hull
+}
+
+Structures
+{
+	// > Default: 604800
+	Decay_Time
+
+	// > Default: 1
+	Armor_Lowtier_Multiplier
+
+	// > Default: 0.5
+	Armor_Hightier_Multiplier
+
+	// > Default: 1
+	Gun_Lowcal_Damage_Multiplier
+
+	// > Default: 1
+	Gun_Highcal_Damage_Multiplier
+
+	// > Default: 1
+	Melee_Damage_Multiplier
+
+	// > Default: 1
+	Melee_Repair_Multiplier
+}
+
+Players
+{
+	// > Default: 100
+	Health_Default
+
+	// > Default: 90
+	Health_Regen_Min_Food
+
+	// > Default: 90
+	Health_Regen_Min_Water
+
+	// > Default: 60
+	Health_Regen_Ticks
+
+	// > Easy: 100    Normal: 100    Hard: 85
+	Food_Default
+
+	// > Easy: 350    Normal: 300    Hard: 250
+	Food_Use_Ticks
+
+	// > Default: 15
+	Food_Damage_Ticks
+
+	// > Easy: 100    Normal: 100    Hard: 85
+	Water_Default
+
+	// > Easy: 320    Normal: 270    Hard: 220
+	Water_Use_Ticks
+
+	// > Default: 20
+	Water_Damage_Ticks
+
+	// > Default: 100
+	Virus_Default
+
+	// > Default: 50
+	Virus_Infect
+
+	// > Default: 125
+	Virus_Use_Ticks
+
+	// > Default: 25
+	Virus_Damage_Ticks
+
+	// > Default: 750
+	Leg_Regen_Ticks
+
+	// > Default: 10
+	Bleed_Damage_Ticks
+
+	// > Default: 750
+	Bleed_Regen_Ticks
+
+	// > Default: 1
+	Armor_Multiplier
+
+	// > Easy: 1.5    Normal: 1    Hard: 1.5
+	Experience_Multiplier
+
+	// > Easy: 0.5    Normal: 1    Hard: 1.25
+	Detect_Radius_Multiplier
+
+	// > Default: 8
+	Ray_Aggressor_Distance
+
+	// > Default: 1
+	Lose_Skills_PvP
+
+	// > Default: 1
+	Lose_Skills_PvE
+
+	// > Easy: 0    Normal: 1    Hard: 2
+	Lose_Skill_Levels_PvP
+
+	// > Easy: 0    Normal: 1    Hard: 2
+	Lose_Skill_Levels_PvE
+
+	// > Default: 0.5
+	Lose_Experience_PvP
+
+	// > Default: 0.5
+	Lose_Experience_PvE
+
+	// > Default: 1
+	Skill_Cost_Multiplier
+
+	// > Default: 1
+	Lose_Items_PvP
+
+	// > Default: 1
+	Lose_Items_PvE
+
+	// > Default: True
+	Lose_Clothes_PvP
+
+	// > Default: True
+	Lose_Clothes_PvE
+
+	// > Default: True
+	Lose_Weapons_PvP
+
+	// > Default: True
+	Lose_Weapons_PvE
+
+	// > Default: True
+	Can_Hurt_Legs
+
+	// > Easy: False    Normal: True    Hard: True
+	Can_Break_Legs
+
+	// > Easy: True    Normal: True    Hard: False
+	Can_Fix_Legs
+
+	// > Easy: False    Normal: True    Hard: True
+	Can_Start_Bleeding
+
+	// > Easy: True    Normal: True    Hard: False
+	Can_Stop_Bleeding
+
+	// > Default: False
+	Spawn_With_Max_Skills
+
+	// > Default: False
+	Spawn_With_Stamina_Skills
+
+	// > Default: True
+	Skillset_Reduces_Skill_Cost
+
+	// > Default: True
+	Skillset_Prevents_Skill_Loss
+
+	// > Default: False
+	Prevent_Level_Skill_Overrides
+
+	// > Easy: False    Normal: False    Hard: True
+	Allow_Instakill_Headshots
+
+	// > Default: False
+	Allow_Per_Character_Saves
+
+	// > Default: True
+	Enable_Terrain_Color_Kick
+}
+
+Objects
+{
+	// > Default: 1
+	Binary_State_Reset_Multiplier
+
+	// > Default: 1
+	Fuel_Reset_Multiplier
+
+	// > Default: 1
+	Water_Reset_Multiplier
+
+	// > Default: 1
+	Resource_Reset_Multiplier
+
+	// > Default: 1
+	Resource_Drops_Multiplier
+
+	// > Default: 1
+	Rubble_Reset_Multiplier
+
+	// > Default: True
+	Allow_Holiday_Drops
+
+	// > Default: True
+	Items_Obstruct_Tree_Respawns
+}
+
+Events
+{
+	// > Default: 2.3
+	Rain_Frequency_Min
+
+	// > Default: 5.6
+	Rain_Frequency_Max
+
+	// > Default: 0.05
+	Rain_Duration_Min
+
+	// > Default: 0.15
+	Rain_Duration_Max
+
+	// > Default: 1.3
+	Snow_Frequency_Min
+
+	// > Default: 4.6
+	Snow_Frequency_Max
+
+	// > Default: 0.2
+	Snow_Duration_Min
+
+	// > Default: 0.5
+	Snow_Duration_Max
+
+	// > Default: 1
+	Weather_Frequency_Multiplier
+
+	// > Default: 1
+	Weather_Duration_Multiplier
+
+	// > Default: 0.8
+	Airdrop_Frequency_Min
+
+	// > Default: 6.5
+	Airdrop_Frequency_Max
+
+	// > Default: 128
+	Airdrop_Speed
+
+	// > Default: 9.5
+	Airdrop_Force
+
+	// > Default: 2
+	Arena_Min_Players
+
+	// > Default: 9
+	Arena_Compactor_Damage
+
+	// > Default: 1
+	Arena_Compactor_Extra_Damage_Per_Second
+
+	// > Default: 5
+	Arena_Clear_Timer
+
+	// > Default: 10
+	Arena_Finale_Timer
+
+	// > Default: 15
+	Arena_Restart_Timer
+
+	// > Default: 1
+	Arena_Compactor_Delay_Timer
+
+	// > Default: 5
+	Arena_Compactor_Pause_Timer
+
+	// > Default: True
+	Use_Airdrops
+
+	// > Default: True
+	Arena_Use_Compactor_Pause
+
+	// > Default: 0.5
+	Arena_Compactor_Speed_Tiny
+
+	// > Default: 1.5
+	Arena_Compactor_Speed_Small
+
+	// > Default: 3
+	Arena_Compactor_Speed_Medium
+
+	// > Default: 4.5
+	Arena_Compactor_Speed_Large
+
+	// > Default: 6
+	Arena_Compactor_Speed_Insane
+
+	// > Default: 0.5
+	Arena_Compactor_Shrink_Factor
+}
+
+Gameplay
+{
+	// > Default: 3
+	Repair_Level_Max
+
+	// > Easy: True    Normal: True    Hard: False
+	Hitmarkers
+
+	// > Easy: True    Normal: True    Hard: False
+	Crosshair
+
+	// > Easy: False    Normal: True    Hard: True
+	Ballistics
+
+	// > Easy: True    Normal: False    Hard: False
+	Chart
+
+	// > Default: False
+	Satellite
+
+	// > Default: False
+	Compass
+
+	// > Easy: True    Normal: True    Hard: False
+	Group_Map
+
+	// > Default: True
+	Group_HUD
+
+	// > Default: True
+	Group_Player_List
+
+	// > Default: True
+	Allow_Static_Groups
+
+	// > Default: True
+	Allow_Dynamic_Groups
+
+	// > Default: True
+	Allow_Lobby_Groups
+
+	// > Default: True
+	Allow_Shoulder_Camera
+
+	// > Default: True
+	Can_Suicide
+
+	// > Default: False
+	Friendly_Fire
+
+	// > Default: False
+	Bypass_Buildable_Mobility
+
+	// > Default: False
+	Bypass_No_Building_Zones
+
+	// > Default: False
+	Bypass_Building_In_Safezones
+
+	// > Default: True
+	Allow_Holidays
+
+	// > Default: True
+	Allow_Freeform_Buildables
+
+	// > Default: True
+	Allow_Freeform_Buildables_On_Vehicles
+
+	// > Default: True
+	Enable_Damage_Flinch
+
+	// > Default: True
+	Enable_Explosion_Camera_Shake
+
+	// > Default: True
+	Enable_Workstation_Requirements
+
+	// > Default: False
+	Disable_Motion_Sickness_Options
+
+	// > Default: False
+	Disable_Foliage_Off
+
+	// > Default: False
+	Use_2D_Scope_Overlay
+
+	// > Default: True
+	Enable_Fishing_Catch_Challenge
+
+	// > Default: 10
+	Timer_Exit
+
+	// > Default: 10
+	Timer_Respawn
+
+	// > Default: 30
+	Timer_Home
+
+	// > Default: 30
+	Timer_Leave_Group
+
+	// > Default: 0
+	Max_Group_Members
+
+	// > Default: 1
+	Explosion_Launch_Speed_Multiplier
+
+	// > Default: 1
+	AirStrafing_Acceleration_Multiplier
+
+	// > Default: 1
+	AirStrafing_Deceleration_Multiplier
+
+	// > Default: 1
+	FirstPerson_RecoilMultiplier
+
+	// > Default: 1
+	FirstPerson_AimingRecoilMultiplier
+
+	// > Easy: 0.25    Normal: 0    Hard: 0
+	FirstPerson_AimingZoomRecoilReduction
+
+	// > Easy: 1    Normal: 2    Hard: 2
+	ThirdPerson_RecoilMultiplier
+
+	// > Easy: 1    Normal: 2    Hard: 2
+	ThirdPerson_SpreadMultiplier
+
+	// > Default: 1
+	Viewmodel_AimingJumpLandMultiplier
+
+	// > Easy: 0.2    Normal: 0.5    Hard: 1
+	Viewmodel_AimingMisalignmentMultiplier
+
+	// > Easy: 35    Normal: 48    Hard: 48
+	Min_Fishing_Bite_Interval
+
+	// > Easy: 48    Normal: 60    Hard: 60
+	Max_Fishing_Bite_Interval
+
+	// > Default: 0.3
+	Fishing_MaxStrength_Bite_Interval_Multiplier
+}

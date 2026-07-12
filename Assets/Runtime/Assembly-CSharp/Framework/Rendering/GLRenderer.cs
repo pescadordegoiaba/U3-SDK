@@ -42,8 +42,12 @@ namespace SDG.Framework.Rendering
 			isLowResolutionPath = isMainCamera && LowResolutionWorldRenderer.TryGetPresentationTarget(cachedCamera, source, out presentationTarget);
 			if (cachedCamera == MainCamera.instance)
 			{
-				int outputWidth = isLowResolutionPath && LowResolutionWorldRenderer.Instance != null ? LowResolutionWorldRenderer.Instance.OutputWidth : destination.width;
-				int outputHeight = isLowResolutionPath && LowResolutionWorldRenderer.Instance != null ? LowResolutionWorldRenderer.Instance.OutputHeight : destination.height;
+				int outputWidth = isLowResolutionPath && LowResolutionWorldRenderer.Instance != null
+					? LowResolutionWorldRenderer.Instance.OutputWidth
+					: (destination != null ? destination.width : Screen.width);
+				int outputHeight = isLowResolutionPath && LowResolutionWorldRenderer.Instance != null
+					? LowResolutionWorldRenderer.Instance.OutputHeight
+					: (destination != null ? destination.height : Screen.height);
 				PerformanceSettingsCache.NotifyResolutionChanged(outputWidth, outputHeight);
 				if (!isLowResolutionPath && LinuxPerformanceRuntime.IsNativeFastPath)
 				{

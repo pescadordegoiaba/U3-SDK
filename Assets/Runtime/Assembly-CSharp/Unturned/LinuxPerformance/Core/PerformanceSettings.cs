@@ -104,6 +104,7 @@ namespace SDG.Unturned.LinuxPerformance
 			settings.CacaoEnabled = GraphicsSettings.LinuxCacaoEnabled;
 			settings.SssrExperimental = GraphicsSettings.LinuxSssrExperimental;
 			settings.DebugOverlay = GraphicsSettings.LinuxDebugOverlay;
+			LinuxPerformanceBootstrap.ApplyCommandLineOverrides(ref settings);
 			settings.Validate();
 			return settings;
 		}
