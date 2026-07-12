@@ -57,8 +57,11 @@ namespace SDG.Unturned.LinuxPerformance
 				return false;
 			}
 			bool created = FidelityFxFsr2Native.TryCreate(description);
-			State = created ? ELinuxFeatureState.Available : ELinuxFeatureState.Error;
-			StateReason = created ? "Contexto AMD FidelityFX FSR2 criado" : FidelityFxFsr2Native.LastError;
+			string reason = created ? "Contexto AMD FidelityFX FSR2 criado" : FidelityFxFsr2Native.LastError;
+			State = created
+				? ELinuxFeatureState.Available
+				: (IsTransientInitializationFailure(reason) ? ELinuxFeatureState.Disabled : ELinuxFeatureState.Error);
+			StateReason = reason;
 			return created;
 		}
 		public void PrepareCamera(Camera camera, ref TemporalFrameContext frame) { }
@@ -133,11 +136,32 @@ namespace SDG.Unturned.LinuxPerformance
 				};
 				if (!Initialize(description))
 				{
-					FailFatal(StateReason);
+					string initializationReason = StateReason;
+					if (IsTransientInitializationFailure(initializationReason))
+					{
+						// O bootstrap valida o smoke depois que o gameplay fica pronto.
+						// Até lá usamos o fallback do frame atual sem bloquear o FSR2
+						// permanentemente para o restante do processo.
+						State = ELinuxFeatureState.Disabled;
+						StateReason = "FSR 2 aguardando pré-condição: " + initializationReason;
+						return false;
+					}
+					FailFatal(initializationReason);
 					return false;
 				}
 			}
 			return DispatchInternal(ref frame, destination);
+		}
+
+		private static bool IsTransientInitializationFailure(string reason)
+		{
+			if (string.IsNullOrEmpty(reason))
+				return false;
+			return reason.IndexOf("Compute smoke Vulkan ainda não validado", System.StringComparison.OrdinalIgnoreCase) >= 0
+				|| reason.IndexOf("smoke Vulkan", System.StringComparison.OrdinalIgnoreCase) >= 0
+				|| reason.IndexOf("motion vectors", System.StringComparison.OrdinalIgnoreCase) >= 0
+				|| reason.IndexOf("entradas temporais", System.StringComparison.OrdinalIgnoreCase) >= 0
+				|| reason.IndexOf("bridge Vulkan", System.StringComparison.OrdinalIgnoreCase) >= 0;
 		}
 
 		private static bool IsTransientDispatchFailure(string reason)

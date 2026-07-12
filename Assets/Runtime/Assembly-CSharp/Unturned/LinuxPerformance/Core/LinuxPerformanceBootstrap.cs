@@ -12,7 +12,12 @@ namespace SDG.Unturned.LinuxPerformance
 	public sealed class LinuxPerformanceBootstrap : MonoBehaviour
 	{
 		public static bool IsDisableAllRequested => disableAllRequested;
-		public static bool IsFsr2DiagnosticForced => forceFsr2Requested && !disableAllRequested;
+		// A seleção explícita de FSR2 nas opções deve poder executar o caminho
+		// experimental. has_fsr2 continua falso até validação completa, mas isso
+		// não pode tornar a opção do usuário permanentemente impossível.
+		public static bool IsFsr2ExplicitlyRequested => !disableAllRequested
+			&& (forceFsr2Requested || GraphicsSettings.LinuxUpscalerMode == ELinuxUpscalerMode.Fsr2);
+		public static bool IsFsr2DiagnosticForced => IsFsr2ExplicitlyRequested;
 
 		public static LinuxPerformanceBootstrap GetOrCreate(GameObject host)
 		{

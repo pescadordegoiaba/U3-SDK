@@ -131,7 +131,12 @@ namespace SDG.Unturned.LinuxPerformance
 			}
 
 			previousTargetTexture = cameraComponent.targetTexture;
+			previousPixelRect = cameraComponent.pixelRect;
 			didOverrideCameraBuffers = true;
+			// SetTargetBuffers não informa à câmera que o framebuffer ficou menor.
+			// Sem ajustar o viewport, Vulkan recorta a renderização e o upscale
+			// estica uma imagem parcialmente atualizada, produzindo a divisão horizontal.
+			cameraComponent.pixelRect = new Rect(0.0f, 0.0f, RenderWidth, RenderHeight);
 			cameraComponent.SetTargetBuffers(sceneColorLowRes.colorBuffer, sceneDepthLowRes.depthBuffer);
 			IsActiveThisFrame = true;
 			PerformanceSettingsCache.NotifyResolutionChanged(OutputWidth, OutputHeight);
@@ -291,7 +296,12 @@ namespace SDG.Unturned.LinuxPerformance
 		private void ResetCameraTarget()
 		{
 			if (didOverrideCameraBuffers && cameraComponent != null)
+			{
+				// targetTexture abandona os buffers separados e pixelRect restaura
+				// o viewport nativo antes da composição da UI/backbuffer.
 				cameraComponent.targetTexture = previousTargetTexture;
+				cameraComponent.pixelRect = previousPixelRect;
+			}
 			didOverrideCameraBuffers = false;
 			previousTargetTexture = null;
 			IsActiveThisFrame = false;
@@ -339,6 +349,7 @@ namespace SDG.Unturned.LinuxPerformance
 		private bool loggedInvalidSource;
 		private bool didOverrideCameraBuffers;
 		private RenderTexture previousTargetTexture;
+		private Rect previousPixelRect;
 		private static readonly int cameraMotionVectorsTextureId = Shader.PropertyToID("_CameraMotionVectorsTexture");
 	}
 }
