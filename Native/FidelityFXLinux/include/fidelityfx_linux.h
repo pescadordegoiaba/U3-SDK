@@ -43,6 +43,7 @@ extern "C"
 		uint32_t abi_version;
 		uint32_t command;
 		uint32_t frame_slot;
+		uint32_t generation;
 		void* source_texture;
 		void* output_texture;
 		uint32_t width;

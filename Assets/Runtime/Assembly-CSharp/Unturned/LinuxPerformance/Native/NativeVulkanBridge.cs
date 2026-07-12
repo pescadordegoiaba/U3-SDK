@@ -27,6 +27,7 @@ namespace SDG.Unturned.LinuxPerformance
 			public uint abi_version;
 			public uint command;
 			public uint frame_slot;
+			public uint generation;
 			public IntPtr source_texture;
 			public IntPtr output_texture;
 			public uint width;
@@ -49,13 +50,18 @@ namespace SDG.Unturned.LinuxPerformance
 
 		public static ELinuxFeatureState State { get; private set; } = ELinuxFeatureState.Disabled;
 		public static string StateReason { get; private set; } = "Smoke Vulkan não inicializado";
+		public static bool IsPluginLoaded { get; private set; }
+		public static bool IsVulkanDetected { get; private set; }
+		public static bool IsBridgeReady { get; private set; }
+		public static bool IsSmokeValidated { get; private set; }
 
 		public static bool Initialize()
 		{
 			if (isInitialized)
 				return eventFunction != IntPtr.Zero;
 			isInitialized = true;
-			if (SystemInfo.graphicsDeviceType != GraphicsDeviceType.Vulkan)
+			IsVulkanDetected = SystemInfo.graphicsDeviceType == GraphicsDeviceType.Vulkan;
+			if (!IsVulkanDetected)
 			{
 				State = ELinuxFeatureState.Unsupported;
 				StateReason = "Renderer ativo não é Vulkan";
@@ -65,6 +71,7 @@ namespace SDG.Unturned.LinuxPerformance
 			{
 				eventFunction = GetRenderEventAndDataFunc();
 				eventId = u3ffx_get_vulkan_smoke_event_id();
+				IsPluginLoaded = true;
 				if (eventFunction == IntPtr.Zero || eventId <= 0)
 				{
 					State = ELinuxFeatureState.Error;
@@ -73,6 +80,10 @@ namespace SDG.Unturned.LinuxPerformance
 				}
 				int stride = Marshal.SizeOf<SmokeParameters>();
 				ringMemory = Marshal.AllocHGlobal(stride * RingSize);
+				eventCommands = new CommandBuffer()
+				{
+					name = "LinuxPerformance.VulkanBridgeEvents",
+				};
 				for (int i = 0; i < RingSize; ++i)
 				{
 					SmokeParameters parameters = new SmokeParameters() { status = SlotFree };
@@ -80,6 +91,7 @@ namespace SDG.Unturned.LinuxPerformance
 				}
 				State = ELinuxFeatureState.Disabled;
 				StateReason = "Bridge carregado; compute smoke aguardando dispatch/readback";
+				IsBridgeReady = true;
 				return true;
 			}
 			catch (Exception e)
@@ -120,6 +132,7 @@ namespace SDG.Unturned.LinuxPerformance
 					abi_version = AbiVersion,
 					command = VulkanSmokeCommand,
 					frame_slot = (uint)slot,
+					generation = frameIndex,
 					source_texture = nativeSource,
 					output_texture = nativeOutput,
 					width = (uint)output.width,
@@ -128,7 +141,9 @@ namespace SDG.Unturned.LinuxPerformance
 					status = SmokeStatusPending,
 				};
 				Marshal.StructureToPtr(parameters, GetSlotPointer(slot), false);
-				GL.IssuePluginEventAndData(eventFunction, eventId, GetSlotPointer(slot));
+				eventCommands.Clear();
+				eventCommands.IssuePluginEventAndData(eventFunction, eventId, GetSlotPointer(slot));
+				Graphics.ExecuteCommandBuffer(eventCommands);
 				nextSlot = (slot + 1) % RingSize;
 				ticket = new SmokeTicket(slot, frameIndex);
 				StateReason = "Compute smoke enviado ao Render Thread";
@@ -173,6 +188,7 @@ namespace SDG.Unturned.LinuxPerformance
 					return false;
 				State = ELinuxFeatureState.Available;
 				StateReason = "Bridge Vulkan compute validado por readback";
+				IsSmokeValidated = true;
 				UpscalerManager.InvalidateBackend("Smoke Vulkan validado");
 				return true;
 			}
@@ -186,19 +202,30 @@ namespace SDG.Unturned.LinuxPerformance
 
 		public static IEnumerator ValidateSmokeCoroutine(Action<bool, string> completed)
 		{
+			return ValidateSmokeCoroutine(64, 64, completed);
+		}
+
+		public static IEnumerator ValidateSmokeCoroutine(int width, int height, Action<bool, string> completed)
+		{
 			if (SystemInfo.graphicsDeviceType != GraphicsDeviceType.Vulkan)
 			{
 				completed?.Invoke(false, "Renderer ativo não é Vulkan");
 				yield break;
 			}
 
-			RenderTexture source = new RenderTexture(64, 64, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear)
+			if (width <= 0 || height <= 0)
+			{
+				completed?.Invoke(false, "Dimensões inválidas para smoke Vulkan");
+				yield break;
+			}
+
+			RenderTexture source = new RenderTexture(width, height, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear)
 			{
 				name = "LinuxPerformance.VulkanSmokeSource",
 				enableRandomWrite = true,
 				antiAliasing = 1,
 			};
-			RenderTexture target = new RenderTexture(64, 64, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear)
+			RenderTexture target = new RenderTexture(width, height, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear)
 			{
 				name = "LinuxPerformance.VulkanSmokeOutput",
 				enableRandomWrite = true,
@@ -225,24 +252,24 @@ namespace SDG.Unturned.LinuxPerformance
 				}
 
 				int status = SmokeStatusPending;
-				uint width = 0;
-				uint height = 0;
+				uint reportedWidth = 0;
+				uint reportedHeight = 0;
 				for (int frame = 0; frame < 60 && status == SmokeStatusPending; ++frame)
 				{
-					yield return new WaitForEndOfFrame();
-					TryGetSmokeResult(ticket, out status, out width, out height);
+					yield return null;
+					TryGetSmokeResult(ticket, out status, out reportedWidth, out reportedHeight);
 				}
-				if (status != SmokeStatusRecorded || width != 64 || height != 64)
+				if (status != SmokeStatusRecorded || reportedWidth != (uint)source.width || reportedHeight != (uint)source.height)
 				{
 					completed?.Invoke(false, status == SmokeStatusError ? StateReason : "Timeout aguardando compute smoke Vulkan");
 					yield break;
 				}
 
-				yield return new WaitForEndOfFrame();
+				yield return null;
 				previous = RenderTexture.active;
 				RenderTexture.active = target;
 				readback = new Texture2D(1, 1, TextureFormat.RGBA32, false, true);
-				readback.ReadPixels(new Rect(32, 32, 1, 1), 0, 0, false);
+				readback.ReadPixels(new Rect(source.width / 2, source.height / 2, 1, 1), 0, 0, false);
 				readback.Apply(false, false);
 				RenderTexture.active = previous;
 				Color pixel = readback.GetPixel(0, 0);
@@ -278,7 +305,11 @@ namespace SDG.Unturned.LinuxPerformance
 			}
 			Marshal.FreeHGlobal(ringMemory);
 			ringMemory = IntPtr.Zero;
+			eventCommands?.Release();
+			eventCommands = null;
 			isInitialized = false;
+			IsBridgeReady = false;
+			IsSmokeValidated = false;
 		}
 
 		private static IntPtr GetSlotPointer(int slot)
@@ -310,6 +341,7 @@ namespace SDG.Unturned.LinuxPerformance
 
 		private static IntPtr eventFunction;
 		private static IntPtr ringMemory;
+		private static CommandBuffer eventCommands;
 		private static int eventId;
 		private static int nextSlot;
 		private static uint nextFrameIndex;

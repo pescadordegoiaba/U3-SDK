@@ -15,10 +15,14 @@ constexpr uint32_t kFramesInFlight = 8;
 
 struct SmokeFrameResources
 {
+	VkImage source_image = VK_NULL_HANDLE;
+	VkImage output_image = VK_NULL_HANDLE;
 	VkImageView source_image_view = VK_NULL_HANDLE;
 	VkImageView output_image_view = VK_NULL_HANDLE;
 	VkDescriptorSet descriptor_set = VK_NULL_HANDLE;
 	uint64_t frame_number = 0;
+	uint32_t generation = 0;
+	bool in_flight = false;
 };
 
 char g_last_error[256] = "Sem erro";
@@ -50,7 +54,7 @@ void set_error(const char* message)
 	g_smoke_state.store(U3FFX_SMOKE_STATUS_ERROR, std::memory_order_release);
 }
 
-void release_frame_resources(SmokeFrameResources& frame)
+void release_frame_image_views(SmokeFrameResources& frame)
 {
 	if (g_device == VK_NULL_HANDLE)
 		return;
@@ -58,17 +62,18 @@ void release_frame_resources(SmokeFrameResources& frame)
 		vkDestroyImageView(g_device, frame.source_image_view, nullptr);
 	if (frame.output_image_view != VK_NULL_HANDLE)
 		vkDestroyImageView(g_device, frame.output_image_view, nullptr);
-	if (frame.descriptor_set != VK_NULL_HANDLE && g_descriptor_pool != VK_NULL_HANDLE)
-		vkFreeDescriptorSets(g_device, g_descriptor_pool, 1, &frame.descriptor_set);
-	frame = {};
+	frame.source_image = VK_NULL_HANDLE;
+	frame.output_image = VK_NULL_HANDLE;
+	frame.source_image_view = VK_NULL_HANDLE;
+	frame.output_image_view = VK_NULL_HANDLE;
 }
 
 void collect_completed_frames(uint64_t safe_frame_number)
 {
 	for (SmokeFrameResources& frame : g_frames)
 	{
-		if (frame.output_image_view != VK_NULL_HANDLE && frame.frame_number <= safe_frame_number)
-			release_frame_resources(frame);
+		if (frame.in_flight && frame.frame_number <= safe_frame_number)
+			frame.in_flight = false;
 	}
 }
 
@@ -78,7 +83,10 @@ void destroy_vulkan_resources()
 		return;
 	vkDeviceWaitIdle(g_device);
 	for (SmokeFrameResources& frame : g_frames)
-		release_frame_resources(frame);
+	{
+		release_frame_image_views(frame);
+		frame = {};
+	}
 	if (g_pipeline != VK_NULL_HANDLE)
 		vkDestroyPipeline(g_device, g_pipeline, nullptr);
 	if (g_pipeline_layout != VK_NULL_HANDLE)
@@ -119,7 +127,9 @@ bool create_vulkan_resources()
 		bindings[i].descriptorCount = 1;
 		bindings[i].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
 	}
-	VkDescriptorSetLayoutCreateInfo descriptor_layout_info{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
+	VkDescriptorSetLayoutCreateInfo descriptor_layout_info{};
+	descriptor_layout_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+	descriptor_layout_info.pNext = nullptr;
 	descriptor_layout_info.bindingCount = 2;
 	descriptor_layout_info.pBindings = bindings;
 	if (vkCreateDescriptorSetLayout(g_device, &descriptor_layout_info, nullptr, &g_descriptor_set_layout) != VK_SUCCESS)
@@ -131,8 +141,10 @@ bool create_vulkan_resources()
 	VkDescriptorPoolSize pool_size{};
 	pool_size.type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
 	pool_size.descriptorCount = kFramesInFlight * 2;
-	VkDescriptorPoolCreateInfo pool_info{VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
-	pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
+	VkDescriptorPoolCreateInfo pool_info{};
+	pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+	pool_info.pNext = nullptr;
+	pool_info.flags = 0;
 	pool_info.maxSets = kFramesInFlight;
 	pool_info.poolSizeCount = 1;
 	pool_info.pPoolSizes = &pool_size;
@@ -141,8 +153,26 @@ bool create_vulkan_resources()
 		set_error("vkCreateDescriptorPool falhou");
 		return false;
 	}
+	std::array<VkDescriptorSetLayout, kFramesInFlight> set_layouts{};
+	set_layouts.fill(g_descriptor_set_layout);
+	std::array<VkDescriptorSet, kFramesInFlight> descriptor_sets{};
+	VkDescriptorSetAllocateInfo allocate_info{};
+	allocate_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+	allocate_info.pNext = nullptr;
+	allocate_info.descriptorPool = g_descriptor_pool;
+	allocate_info.descriptorSetCount = kFramesInFlight;
+	allocate_info.pSetLayouts = set_layouts.data();
+	if (vkAllocateDescriptorSets(g_device, &allocate_info, descriptor_sets.data()) != VK_SUCCESS)
+	{
+		set_error("vkAllocateDescriptorSets persistente falhou");
+		return false;
+	}
+	for (uint32_t i = 0; i < kFramesInFlight; ++i)
+		g_frames[i].descriptor_set = descriptor_sets[i];
 
-	VkPipelineLayoutCreateInfo pipeline_layout_info{VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
+	VkPipelineLayoutCreateInfo pipeline_layout_info{};
+	pipeline_layout_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+	pipeline_layout_info.pNext = nullptr;
 	pipeline_layout_info.setLayoutCount = 1;
 	pipeline_layout_info.pSetLayouts = &g_descriptor_set_layout;
 	if (vkCreatePipelineLayout(g_device, &pipeline_layout_info, nullptr, &g_pipeline_layout) != VK_SUCCESS)
@@ -151,7 +181,9 @@ bool create_vulkan_resources()
 		return false;
 	}
 
-	VkShaderModuleCreateInfo shader_info{VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO};
+	VkShaderModuleCreateInfo shader_info{};
+	shader_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+	shader_info.pNext = nullptr;
 	shader_info.codeSize = sizeof(u3ffx_vulkan_smoke_comp_spv);
 	shader_info.pCode = u3ffx_vulkan_smoke_comp_spv;
 	VkShaderModule shader_module = VK_NULL_HANDLE;
@@ -161,7 +193,9 @@ bool create_vulkan_resources()
 		return false;
 	}
 
-	VkComputePipelineCreateInfo pipeline_info{VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO};
+	VkComputePipelineCreateInfo pipeline_info{};
+	pipeline_info.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+	pipeline_info.pNext = nullptr;
 	pipeline_info.stage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
 	pipeline_info.stage.stage = VK_SHADER_STAGE_COMPUTE_BIT;
 	pipeline_info.stage.module = shader_module;
@@ -228,7 +262,7 @@ void dispatch_smoke(U3FfxVulkanSmokeParameters* parameters)
 		return;
 	}
 	if (parameters->struct_size < sizeof(U3FfxVulkanSmokeParameters) || parameters->abi_version != static_cast<uint32_t>(U3FFX_ABI_VERSION)
-		|| parameters->command != U3FFX_COMMAND_VULKAN_SMOKE || parameters->frame_slot >= kFramesInFlight)
+		|| parameters->command != U3FFX_COMMAND_VULKAN_SMOKE || parameters->frame_slot >= kFramesInFlight || parameters->generation == 0)
 	{
 		set_error("ABI ou comando inválido nos parâmetros do smoke Vulkan");
 		return;
@@ -247,9 +281,14 @@ void dispatch_smoke(U3FfxVulkanSmokeParameters* parameters)
 	}
 	collect_completed_frames(before_access.safeFrameNumber);
 	SmokeFrameResources& frame = g_frames[parameters->frame_slot];
-	if (frame.output_image_view != VK_NULL_HANDLE)
+	if (frame.in_flight)
 	{
 		set_error("Ring Vulkan cheio; frame ainda em voo");
+		return;
+	}
+	if (parameters->generation <= frame.generation)
+	{
+		set_error("Generation obsoleta no slot Vulkan");
 		return;
 	}
 
@@ -292,36 +331,36 @@ void dispatch_smoke(U3FfxVulkanSmokeParameters* parameters)
 		return;
 	}
 
-	VkImageViewCreateInfo view_info{VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
-	view_info.image = source_image.image;
-	view_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
-	view_info.format = source_image.format;
-	view_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-	view_info.subresourceRange.levelCount = 1;
-	view_info.subresourceRange.layerCount = 1;
-	if (vkCreateImageView(g_device, &view_info, nullptr, &frame.source_image_view) != VK_SUCCESS)
+	bool resources_changed = frame.source_image != source_image.image || frame.output_image != output_image.image;
+	if (resources_changed)
 	{
-		set_error("vkCreateImageView falhou para source");
-		return;
-	}
-	view_info.image = output_image.image;
-	view_info.format = output_image.format;
-	if (vkCreateImageView(g_device, &view_info, nullptr, &frame.output_image_view) != VK_SUCCESS)
-	{
-		release_frame_resources(frame);
-		set_error("vkCreateImageView falhou para output");
-		return;
-	}
-
-	VkDescriptorSetAllocateInfo allocate_info{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
-	allocate_info.descriptorPool = g_descriptor_pool;
-	allocate_info.descriptorSetCount = 1;
-	allocate_info.pSetLayouts = &g_descriptor_set_layout;
-	if (vkAllocateDescriptorSets(g_device, &allocate_info, &frame.descriptor_set) != VK_SUCCESS)
-	{
-		release_frame_resources(frame);
-		set_error("vkAllocateDescriptorSets falhou");
-		return;
+		release_frame_image_views(frame);
+		VkImageViewCreateInfo view_info{};
+		view_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+		view_info.pNext = nullptr;
+		view_info.image = source_image.image;
+		view_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
+		view_info.format = source_image.format;
+		view_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		view_info.subresourceRange.baseMipLevel = 0;
+		view_info.subresourceRange.levelCount = 1;
+		view_info.subresourceRange.baseArrayLayer = 0;
+		view_info.subresourceRange.layerCount = 1;
+		if (vkCreateImageView(g_device, &view_info, nullptr, &frame.source_image_view) != VK_SUCCESS)
+		{
+			set_error("vkCreateImageView falhou para source");
+			return;
+		}
+		view_info.image = output_image.image;
+		view_info.format = output_image.format;
+		if (vkCreateImageView(g_device, &view_info, nullptr, &frame.output_image_view) != VK_SUCCESS)
+		{
+			release_frame_image_views(frame);
+			set_error("vkCreateImageView falhou para output");
+			return;
+		}
+		frame.source_image = source_image.image;
+		frame.output_image = output_image.image;
 	}
 
 	VkDescriptorImageInfo descriptor_images[2]{};
@@ -339,7 +378,8 @@ void dispatch_smoke(U3FfxVulkanSmokeParameters* parameters)
 		writes[i].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
 		writes[i].pImageInfo = &descriptor_images[i];
 	}
-	vkUpdateDescriptorSets(g_device, 2, writes, 0, nullptr);
+	if (resources_changed)
+		vkUpdateDescriptorSets(g_device, 2, writes, 0, nullptr);
 
 	vkCmdBindPipeline(recording.commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, g_pipeline);
 	vkCmdBindDescriptorSets(recording.commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, g_pipeline_layout, 0, 1, &frame.descriptor_set, 0, nullptr);
@@ -347,6 +387,8 @@ void dispatch_smoke(U3FfxVulkanSmokeParameters* parameters)
 	uint32_t height = output_image.extent.height;
 	vkCmdDispatch(recording.commandBuffer, (width + 7u) / 8u, (height + 7u) / 8u, 1);
 	frame.frame_number = recording.currentFrameNumber;
+	frame.generation = parameters->generation;
+	frame.in_flight = true;
 	parameters->width = width;
 	parameters->height = height;
 	parameters->status = U3FFX_SMOKE_STATUS_RECORDED;

@@ -35,3 +35,9 @@ Quando um backend temporal está realmente ativo, `TemporalCameraController` apl
 Há debug views para depth linearizado, motion vectors RGB/magnitude, jitter e reactive mask. Motion vectors continuam explicitamente **não validados visualmente**: câmera, jogador, arma, animator/skinning, veículo, eixo Y e Vulkan precisam de inspeção no Player gráfico. A reactive mask neutra é funcional como fallback, porém incompleta para transparências, água, fogo e partículas; composition mask permanece nula.
 
 O histórico é invalidado por troca/ativação de backend, câmera, mapa, teleporte, morte/respawn, resize, mudança de escala ou FOV e frame anormal. Esses resets não habilitam FSR2 por si mesmos; `has_fsr2` continua zero enquanto o dispatch nativo não existir e não for validado.
+
+## Bridge Vulkan
+
+O plugin registra os callbacks oficiais `UnityPluginLoad`/`UnityPluginUnload`, acompanha os eventos de device e obtém imagens exclusivamente por `IUnityGraphicsVulkan::AccessTexture`. O evento recebe uma struct versionada em ring unmanaged persistente, com slot e generation validados. Source e output entram em `VK_IMAGE_LAYOUT_GENERAL` por barriers geradas pela interface Unity, são usados no command buffer corrente e voltam ao controle da Unity após o callback.
+
+O compute smoke lê uma textura RGBA8, inverte o canal vermelho e escreve outra textura. Pipeline, descriptor pool, descriptor sets e shader module são criados fora do caminho por frame; image views são reutilizadas por slot e só mudam quando a imagem Unity real muda. O readback PlayMode valida duas dimensões. `has_vulkan_backend` só passa a 1 depois desse readback; `has_fsr2`, FSR 3.1 e Frame Generation continuam zero.

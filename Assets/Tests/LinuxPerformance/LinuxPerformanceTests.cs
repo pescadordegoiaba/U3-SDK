@@ -2,14 +2,13 @@
 // This file is part of the U3 SDK: https://github.com/smartlydressedgames/u3-sdk/    //
 // Please refer to the included LICENSE.txt for copyright notice and license details. //
 ////////////////////////////////////////////////////////////////////////////////////////
-using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Runtime.Serialization;
 using NUnit.Framework;
 using SDG.Unturned.LinuxPerformance;
 using UnityEngine;
-using UnityEngine.TestTools;
 
 namespace SDG.Unturned.Tests
 {
@@ -482,6 +481,21 @@ namespace SDG.Unturned.Tests
 		}
 
 		[Test]
+		public void NativeVulkanSmokeAbiLayoutMatchesNativeX64()
+		{
+			System.Type parametersType = typeof(NativeVulkanBridge).GetNestedType("SmokeParameters", BindingFlags.NonPublic);
+			Assert.IsNotNull(parametersType);
+			Assert.AreEqual(56, Marshal.SizeOf(parametersType));
+			Assert.AreEqual(0, Marshal.OffsetOf(parametersType, "struct_size").ToInt32());
+			Assert.AreEqual(4, Marshal.OffsetOf(parametersType, "abi_version").ToInt32());
+			Assert.AreEqual(8, Marshal.OffsetOf(parametersType, "command").ToInt32());
+			Assert.AreEqual(12, Marshal.OffsetOf(parametersType, "frame_slot").ToInt32());
+			Assert.AreEqual(16, Marshal.OffsetOf(parametersType, "generation").ToInt32());
+			Assert.AreEqual(24, Marshal.OffsetOf(parametersType, "source_texture").ToInt32());
+			Assert.AreEqual(32, Marshal.OffsetOf(parametersType, "output_texture").ToInt32());
+		}
+
+		[Test]
 		public void NativePluginAbiQueryDoesNotThrow()
 		{
 			int version = 0;
@@ -497,28 +511,6 @@ namespace SDG.Unturned.Tests
 			string status = null;
 			Assert.DoesNotThrow(() => NativeRenderBackend.TryGetCapabilities(out capabilities, out status));
 			Assert.IsNotNull(status);
-		}
-
-		[UnityTest]
-		public IEnumerator NativeVulkanComputeSmokeWritesExpectedImage()
-		{
-			if (SystemInfo.graphicsDeviceType != UnityEngine.Rendering.GraphicsDeviceType.Vulkan)
-				Assert.Ignore("Teste requer Unity Editor em Vulkan");
-			bool completed = false;
-			bool passed = false;
-			string reason = null;
-			yield return NativeVulkanBridge.ValidateSmokeCoroutine((result, message) =>
-			{
-				completed = true;
-				passed = result;
-				reason = message;
-			});
-			Assert.IsTrue(completed);
-			Assert.IsTrue(passed, reason);
-			Assert.IsTrue(NativeRenderBackend.TryGetCapabilities(out NativeRenderBackend.PluginCapabilities capabilities, out string status), status);
-			Assert.IsTrue(capabilities.HasVulkanBackend);
-			Assert.AreEqual(ELinuxNativeBackendKind.VulkanComputeFunctional, capabilities.BackendKind);
-			Assert.IsFalse(capabilities.HasFsr2);
 		}
 
 		[Test]

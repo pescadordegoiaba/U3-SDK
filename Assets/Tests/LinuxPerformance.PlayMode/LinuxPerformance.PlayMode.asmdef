@@ -1,0 +1,6 @@
+{
+    "name": "LinuxPerformance.PlayMode.Tests",
+    "optionalUnityReferences": [
+        "TestAssemblies"
+    ]
+}
