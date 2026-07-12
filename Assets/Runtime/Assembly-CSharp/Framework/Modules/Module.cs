@@ -169,12 +169,22 @@ namespace SDG.Framework.Modules
 			for (int typeIndex = 0; typeIndex < types.Length; typeIndex++)
 			{
 				Type type = types[typeIndex];
+				if (type == null)
+				{
+					SDG.Unturned.UnturnedLog.warn($"Optional module \"{config.Name}\" contains an unavailable type: path=\"{config.FilePath}\"");
+					continue;
+				}
 
 				try
 				{
 					if (!type.IsAbstract && nexusType.TryIsAssignableFrom(type))
 					{
 						IModuleNexus nexus = Activator.CreateInstance(type) as IModuleNexus;
+						if (nexus == null)
+						{
+							SDG.Unturned.UnturnedLog.error($"Optional module \"{config.Name}\" entry point could not be instantiated: type=\"{type.FullName}\", assembly=\"{type.Assembly.FullName}\", assemblyPath=\"{type.Assembly.Location}\", modulePath=\"{config.FilePath}\"");
+							continue;
+						}
 
 						try
 						{
@@ -182,8 +192,9 @@ namespace SDG.Framework.Modules
 						}
 						catch (Exception ex)
 						{
-							SDG.Unturned.UnturnedLog.error($"Caught exception while initializing module \"{config.Name}\" entry point \"{type.Name}\":");
+							SDG.Unturned.UnturnedLog.error($"Optional module failed and was left unavailable: module=\"{config.Name}\", type=\"{type.FullName}\", assembly=\"{type.Assembly.FullName}\", assemblyPath=\"{type.Assembly.Location}\", modulePath=\"{config.FilePath}\":");
 							SDG.Unturned.UnturnedLog.exception(ex);
+							continue;
 						}
 
 						nexii.Add(nexus);
@@ -191,7 +202,7 @@ namespace SDG.Framework.Modules
 				}
 				catch (Exception exception)
 				{
-					SDG.Unturned.UnturnedLog.exception(exception, $"Caught exception while searching for entry points in module \"{config.Name}\" type \"{type.Name}\"");
+					SDG.Unturned.UnturnedLog.exception(exception, $"Optional module entry point rejected: module=\"{config.Name}\", type=\"{type.FullName}\", assembly=\"{type.Assembly.FullName}\", assemblyPath=\"{type.Assembly.Location}\", modulePath=\"{config.FilePath}\":");
 				}
 			}
 

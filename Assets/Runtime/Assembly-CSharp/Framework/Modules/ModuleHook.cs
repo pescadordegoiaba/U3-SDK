@@ -69,6 +69,7 @@ namespace SDG.Framework.Modules
 		}
 
 		private static List<IModuleNexus> coreNexii;
+		public bool HasFatalStartupError { get; private set; }
 
 		/// <summary>
 		/// Called once after all startup enabled modules are loaded. Not called when modules are initialized due to enabling/disabling.
@@ -812,17 +813,36 @@ namespace SDG.Framework.Modules
 		// Equivalent of Main(string[] args)
 		public void awake()
 		{
+			HasFatalStartupError = false;
 			AppDomain.CurrentDomain.AssemblyResolve += handleAssemblyResolve;
 			AppDomain.CurrentDomain.TypeResolve += OnTypeResolve;
 
 			coreAssembly = System.Reflection.Assembly.GetExecutingAssembly();
+			UnturnedLog.info("ModuleHook startup: cwd=\"{0}\", dataPath=\"{1}\", streamingAssetsPath=\"{2}\", root=\"{3}\", assembly=\"{4}\", location=\"{5}\"",
+				Environment.CurrentDirectory, Application.dataPath, Application.streamingAssetsPath, ReadWrite.PATH, coreAssembly.FullName, coreAssembly.Location);
 			try
 			{
 				coreTypes = coreAssembly.GetTypes();
 			}
 			catch (ReflectionTypeLoadException exception)
 			{
-				coreTypes = exception.Types;
+				UnturnedLog.error("ReflectionTypeLoadException loading core assembly \"{0}\" from \"{1}\". Logging every LoaderException:", coreAssembly.FullName, coreAssembly.Location);
+				if (exception.LoaderExceptions != null)
+				{
+					for (int index = 0; index < exception.LoaderExceptions.Length; ++index)
+					{
+						Exception loaderException = exception.LoaderExceptions[index];
+						if (loaderException != null)
+							UnturnedLog.exception(loaderException, $"ModuleHook LoaderException [{index}]:");
+					}
+				}
+				coreTypes = FilterLoadableTypes(exception.Types);
+			}
+			catch (Exception exception)
+			{
+				HasFatalStartupError = true;
+				coreTypes = Array.Empty<Type>();
+				UnturnedLog.exception(exception, $"Fatal error loading mandatory core assembly \"{coreAssembly.FullName}\" from \"{coreAssembly.Location}\":");
 			}
 
 			loadModules();
@@ -834,36 +854,60 @@ namespace SDG.Framework.Modules
 			coreNexii.Clear();
 			Type nexusType = typeof(IModuleNexus);
 
+			if (coreTypes == null || coreTypes.Length == 0)
+			{
+				HasFatalStartupError = true;
+				UnturnedLog.error("Mandatory core module has no loadable types: assembly=\"{0}\", path=\"{1}\"", coreAssembly?.FullName, coreAssembly?.Location);
+				return;
+			}
+
 			for (int typeIndex = 0; typeIndex < coreTypes.Length; typeIndex++)
 			{
 				Type type = coreTypes[typeIndex];
+				if (type == null || type.IsAbstract || !nexusType.TryIsAssignableFrom(type))
+					continue;
 
-				if (!type.IsAbstract && nexusType.TryIsAssignableFrom(type))
+				try
 				{
 					IModuleNexus nexus = Activator.CreateInstance(type) as IModuleNexus;
-
-					try
+					if (nexus == null)
 					{
-						nexus.initialize();
+						HasFatalStartupError = true;
+						UnturnedLog.error("Mandatory core nexus could not be instantiated: type=\"{0}\", assembly=\"{1}\", path=\"{2}\"", type.FullName, type.Assembly.FullName, type.Assembly.Location);
+						continue;
 					}
-					catch (Exception ex)
-					{
-						SDG.Unturned.UnturnedLog.error("Failed to initialize nexus!");
-						SDG.Unturned.UnturnedLog.exception(ex);
-					}
-
+					nexus.initialize();
 					coreNexii.Add(nexus);
+				}
+				catch (Exception exception)
+				{
+					HasFatalStartupError = true;
+					UnturnedLog.exception(exception, $"Mandatory core nexus failed: type=\"{type.FullName}\", assembly=\"{type.Assembly.FullName}\", path=\"{type.Assembly.Location}\":");
 				}
 			}
 
-			initializeModules();
+			if (!HasFatalStartupError)
+				initializeModules();
+		}
+
+		internal static Type[] FilterLoadableTypes(Type[] types)
+		{
+			if (types == null || types.Length == 0)
+				return Array.Empty<Type>();
+			List<Type> result = new List<Type>(types.Length);
+			for (int index = 0; index < types.Length; ++index)
+			{
+				if (types[index] != null)
+					result.Add(types[index]);
+			}
+			return result.ToArray();
 		}
 
 		private void OnDestroy()
 		{
 			shutdownModules();
 
-			for (int index = 0; index < coreNexii.Count; index++)
+			for (int index = 0; coreNexii != null && index < coreNexii.Count; index++)
 			{
 				try
 				{
@@ -875,7 +919,7 @@ namespace SDG.Framework.Modules
 					SDG.Unturned.UnturnedLog.exception(ex);
 				}
 			}
-			coreNexii.Clear();
+			coreNexii?.Clear();
 
 			AppDomain.CurrentDomain.AssemblyResolve -= handleAssemblyResolve;
 			AppDomain.CurrentDomain.TypeResolve -= OnTypeResolve;

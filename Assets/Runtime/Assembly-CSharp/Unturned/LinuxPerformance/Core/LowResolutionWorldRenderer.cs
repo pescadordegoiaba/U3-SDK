@@ -53,12 +53,6 @@ namespace SDG.Unturned.LinuxPerformance
 			return true;
 		}
 
-		public static void Present(RenderTexture target)
-		{
-			if (target != null)
-				Graphics.Blit(target, (RenderTexture)null);
-		}
-
 		public static void CompleteFrame(Camera camera)
 		{
 			if (Instance != null && camera == Instance.cameraComponent)
@@ -96,16 +90,21 @@ namespace SDG.Unturned.LinuxPerformance
 			if (cameraComponent == null)
 				cameraComponent = GetComponent<Camera>();
 			Instance = this;
+			MainCamera.instanceChanged += OnMainCameraChanged;
+			Level.onLevelExited += OnLevelExited;
+			Application.quitting += OnApplicationQuitting;
 		}
 
 		private void OnPreCull()
 		{
 			IsActiveThisFrame = false;
-			if (cameraComponent == null || cameraComponent != MainCamera.instance)
-				return;
-
 			PerformanceSettings settings = PerformanceSettingsCache.Current;
 			float scale = ResolveScale(settings);
+			if (!CanUseLowResolutionGameplay(cameraComponent, settings, scale))
+			{
+				ResetCameraTarget();
+				return;
+			}
 			OutputWidth = Mathf.Max(1, Screen.width);
 			OutputHeight = Mathf.Max(1, Screen.height);
 			CalculateDimensions(OutputWidth, OutputHeight, scale, out int renderWidth, out int renderHeight);
@@ -124,6 +123,8 @@ namespace SDG.Unturned.LinuxPerformance
 				return;
 			}
 
+			previousTargetTexture = cameraComponent.targetTexture;
+			didOverrideCameraBuffers = true;
 			cameraComponent.SetTargetBuffers(sceneColorLowRes.colorBuffer, sceneDepthLowRes.depthBuffer);
 			IsActiveThisFrame = true;
 			PerformanceSettingsCache.NotifyResolutionChanged(OutputWidth, OutputHeight);
@@ -131,6 +132,9 @@ namespace SDG.Unturned.LinuxPerformance
 
 		private void OnDisable()
 		{
+			MainCamera.instanceChanged -= OnMainCameraChanged;
+			Level.onLevelExited -= OnLevelExited;
+			Application.quitting -= OnApplicationQuitting;
 			ResetCameraTarget();
 			ReleaseTargets();
 			if (Instance == this)
@@ -141,6 +145,35 @@ namespace SDG.Unturned.LinuxPerformance
 		{
 			OnDisable();
 		}
+
+		private void OnPostRender()
+		{
+			ResetCameraTarget();
+		}
+
+		internal static bool MeetsLowResolutionGameplayRequirements(bool disableAll, bool levelLoaded, bool hasLocalPlayer,
+			bool isMainCamera, bool cameraActive, bool backendAvailable, bool loadingBlocked, float scale)
+		{
+			return !disableAll && levelLoaded && hasLocalPlayer && isMainCamera && cameraActive && backendAvailable && !loadingBlocked && scale < 0.999f;
+		}
+
+		private bool CanUseLowResolutionGameplay(Camera camera, in PerformanceSettings settings, float scale)
+		{
+			bool backendAvailable = settings.UpscalerMode != ELinuxUpscalerMode.Off && UpscalerManager.ActiveBackend != null;
+			return MeetsLowResolutionGameplayRequirements(
+				LinuxPerformanceBootstrap.IsDisableAllRequested,
+				Level.isLoaded,
+				Player.LocalPlayer != null,
+				camera != null && camera == MainCamera.instance && camera.cameraType == CameraType.Game,
+				camera != null && camera.enabled && camera.gameObject.activeInHierarchy,
+				backendAvailable,
+				LoadingUI.isBlocked,
+				scale);
+		}
+
+		private void OnMainCameraChanged() => ResetCameraTarget();
+		private void OnLevelExited() => ResetCameraTarget();
+		private void OnApplicationQuitting() => ResetCameraTarget();
 
 		private static float ResolveScale(in PerformanceSettings settings)
 		{
@@ -233,8 +266,10 @@ namespace SDG.Unturned.LinuxPerformance
 
 		private void ResetCameraTarget()
 		{
-			if (cameraComponent != null)
-				cameraComponent.targetTexture = null;
+			if (didOverrideCameraBuffers && cameraComponent != null)
+				cameraComponent.targetTexture = previousTargetTexture;
+			didOverrideCameraBuffers = false;
+			previousTargetTexture = null;
 			IsActiveThisFrame = false;
 		}
 
@@ -276,6 +311,8 @@ namespace SDG.Unturned.LinuxPerformance
 		private RenderTexture reactiveMaskLowRes;
 		private TemporalCameraController temporalController;
 		private bool loggedInvalidSource;
+		private bool didOverrideCameraBuffers;
+		private RenderTexture previousTargetTexture;
 		private static readonly int cameraMotionVectorsTextureId = Shader.PropertyToID("_CameraMotionVectorsTexture");
 	}
 }

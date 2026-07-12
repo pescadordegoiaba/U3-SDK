@@ -180,6 +180,97 @@ namespace SDG.Unturned.Tests.PlayMode
 			}
 		}
 
+		[Test]
+		public void VulkanSmokeRequiresExplicitOptInAndDisableAllWins()
+		{
+			Type bootstrapType = Type.GetType("SDG.Unturned.LinuxPerformance.LinuxPerformanceBootstrap, Assembly-CSharp", true);
+			MethodInfo method = bootstrapType.GetMethod("ShouldRunVulkanSmoke", BindingFlags.Static | BindingFlags.NonPublic);
+			Assert.IsNotNull(method);
+			Assert.IsFalse((bool)method.Invoke(null, new object[] { new string[0] }));
+			Assert.IsTrue((bool)method.Invoke(null, new object[] { new string[] { "game", "-LinuxPerformanceRunVulkanSmoke" } }));
+			Assert.IsFalse((bool)method.Invoke(null, new object[] { new string[] { "game", "-LinuxPerformanceRunVulkanSmoke", "-LinuxPerformanceDisableAll" } }));
+		}
+
+		[Test]
+		public void LowResolutionRequiresLoadedGameplayPlayerMainCameraAndBackend()
+		{
+			Type rendererType = Type.GetType("SDG.Unturned.LinuxPerformance.LowResolutionWorldRenderer, Assembly-CSharp", true);
+			MethodInfo method = rendererType.GetMethod("MeetsLowResolutionGameplayRequirements", BindingFlags.Static | BindingFlags.NonPublic);
+			Assert.IsNotNull(method);
+			Func<bool, bool, bool, bool, bool, bool, bool, float, bool> evaluate =
+				(disableAll, loaded, player, main, active, backend, loading, scale) =>
+					(bool)method.Invoke(null, new object[] { disableAll, loaded, player, main, active, backend, loading, scale });
+			Assert.IsTrue(evaluate(false, true, true, true, true, true, false, 0.67f));
+			Assert.IsFalse(evaluate(true, true, true, true, true, true, false, 0.67f));
+			Assert.IsFalse(evaluate(false, false, true, true, true, true, false, 0.67f));
+			Assert.IsFalse(evaluate(false, true, false, true, true, true, false, 0.67f));
+			Assert.IsFalse(evaluate(false, true, true, false, true, true, false, 0.67f));
+			Assert.IsFalse(evaluate(false, true, true, true, true, false, false, 0.67f));
+			Assert.IsFalse(evaluate(false, true, true, true, true, true, true, 0.67f));
+			Assert.IsFalse(evaluate(false, true, true, true, true, true, false, 1.0f));
+		}
+
+		[Test]
+		public void ModuleHookFiltersUnavailableReflectionTypes()
+		{
+			Type hookType = Type.GetType("SDG.Framework.Modules.ModuleHook, Assembly-CSharp", true);
+			MethodInfo method = hookType.GetMethod("FilterLoadableTypes", BindingFlags.Static | BindingFlags.NonPublic);
+			Assert.IsNotNull(method);
+			Type[] result = (Type[])method.Invoke(null, new object[] { new Type[] { typeof(string), null, typeof(int) } });
+			CollectionAssert.AreEqual(new Type[] { typeof(string), typeof(int) }, result);
+		}
+
+		[Test]
+		public void GlazierFactoryRegistersImplementationBeforeWidgetCreation()
+		{
+			Type factoryType = Type.GetType("SDG.Unturned.GlazierFactory, Assembly-CSharp", true);
+			Type glazierType = Type.GetType("SDG.Unturned.Glazier, SDG.Glazier.Runtime", true);
+			FieldInfo instanceField = glazierType.GetField("instance", BindingFlags.Static | BindingFlags.Public);
+			object previous = instanceField.GetValue(null);
+			object implementation = null;
+			try
+			{
+				factoryType.GetMethod("Create", BindingFlags.Static | BindingFlags.Public).Invoke(null, null);
+				implementation = glazierType.GetMethod("Get", BindingFlags.Static | BindingFlags.Public).Invoke(null, null);
+				Assert.IsNotNull(implementation);
+				Type wrapperType = Type.GetType("SDG.Unturned.SleekWrapper, SDG.Glazier.Runtime", true);
+				Assert.DoesNotThrow(() => Activator.CreateInstance(wrapperType));
+			}
+			finally
+			{
+				instanceField.SetValue(null, previous);
+				Component component = implementation as Component;
+				if (component != null)
+					UnityEngine.Object.DestroyImmediate(component.gameObject);
+			}
+		}
+
+		[UnityTest]
+		public IEnumerator LowResolutionOnDisableRestoresPreviousCameraTarget()
+		{
+			GameObject gameObject = new GameObject("LowResolutionRestoreTest");
+			RenderTexture original = CreateRenderTexture(16, 16, RenderTextureFormat.ARGB32, 0, false);
+			RenderTexture overrideTarget = CreateRenderTexture(8, 8, RenderTextureFormat.ARGB32, 0, false);
+			try
+			{
+				Camera camera = gameObject.AddComponent<Camera>();
+				Type rendererType = Type.GetType("SDG.Unturned.LinuxPerformance.LowResolutionWorldRenderer, Assembly-CSharp", true);
+				Behaviour renderer = (Behaviour)gameObject.AddComponent(rendererType);
+				rendererType.GetField("previousTargetTexture", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(renderer, original);
+				rendererType.GetField("didOverrideCameraBuffers", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(renderer, true);
+				camera.targetTexture = overrideTarget;
+				renderer.enabled = false;
+				yield return null;
+				Assert.AreSame(original, camera.targetTexture);
+			}
+			finally
+			{
+				UnityEngine.Object.DestroyImmediate(gameObject);
+				Release(original);
+				Release(overrideTarget);
+			}
+		}
+
 		private static Fsr2CreateDescription CreateFsr2Description(uint renderWidth, uint renderHeight, uint displayWidth, uint displayHeight, bool invertedDepth)
 		{
 			return new Fsr2CreateDescription()

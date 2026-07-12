@@ -11,8 +11,18 @@ namespace SDG.Unturned.LinuxPerformance
 {
 	public sealed class LinuxPerformanceBootstrap : MonoBehaviour
 	{
+		public static bool IsDisableAllRequested => disableAllRequested;
+
 		public static LinuxPerformanceBootstrap GetOrCreate(GameObject host)
 		{
+			if (disableAllRequested)
+			{
+				ApplyDisableAllOverrides();
+				DisableOptionalComponent<PerformanceTelemetry>(host);
+				DisableOptionalComponent<TemporalCameraController>(host);
+				DisableOptionalComponent<LowResolutionWorldRenderer>(host);
+				return null;
+			}
 			LinuxPerformanceBootstrap bootstrap = host.GetComponent<LinuxPerformanceBootstrap>();
 			if (bootstrap == null)
 				bootstrap = host.AddComponent<LinuxPerformanceBootstrap>();
@@ -38,7 +48,7 @@ namespace SDG.Unturned.LinuxPerformance
 
 		private IEnumerator Start()
 		{
-			if (SystemInfo.graphicsDeviceType == UnityEngine.Rendering.GraphicsDeviceType.Vulkan)
+			if (ShouldRunVulkanSmoke(Environment.GetCommandLineArgs()) && SystemInfo.graphicsDeviceType == UnityEngine.Rendering.GraphicsDeviceType.Vulkan)
 			{
 				bool smokePassed = false;
 				string smokeReason = "Não executado";
@@ -73,6 +83,11 @@ namespace SDG.Unturned.LinuxPerformance
 
 		private static void ApplyCommandLineOverrides()
 		{
+			if (disableAllRequested)
+			{
+				ApplyDisableAllOverrides();
+				return;
+			}
 			if (HasCommandLineArg("-LinuxPerformanceForceFsr1"))
 			{
 				GraphicsSettings.LinuxUpscalerMode = ELinuxUpscalerMode.Fsr1;
@@ -105,15 +120,46 @@ namespace SDG.Unturned.LinuxPerformance
 				GraphicsSettings.LinuxDebugOverlay = true;
 		}
 
-		private static bool HasCommandLineArg(string value)
+		internal static bool ShouldRunVulkanSmoke(string[] args)
 		{
-			string[] args = Environment.GetCommandLineArgs();
+			return !HasCommandLineArg(args, "-LinuxPerformanceDisableAll") && HasCommandLineArg(args, "-LinuxPerformanceRunVulkanSmoke");
+		}
+
+		internal static bool HasCommandLineArg(string[] args, string value)
+		{
+			if (args == null)
+				return false;
 			for (int i = 0; i < args.Length; ++i)
 			{
 				if (string.Equals(args[i], value, StringComparison.OrdinalIgnoreCase))
 					return true;
 			}
 			return false;
+		}
+
+		private static bool HasCommandLineArg(string value) => HasCommandLineArg(Environment.GetCommandLineArgs(), value);
+
+		private static void ApplyDisableAllOverrides()
+		{
+			GraphicsSettings.LinuxUpscalerMode = ELinuxUpscalerMode.Off;
+			GraphicsSettings.LinuxDynamicResolution = false;
+			GraphicsSettings.LinuxMotionAdaptiveResolution = false;
+			GraphicsSettings.LinuxLowLatencyMode = false;
+			GraphicsSettings.LinuxCullingProfile = ELinuxCullingProfile.Original;
+			GraphicsSettings.LinuxCasEnabled = false;
+			GraphicsSettings.LinuxCacaoEnabled = false;
+			GraphicsSettings.LinuxSssrExperimental = false;
+			GraphicsSettings.LinuxDebugOverlay = false;
+			TemporalDebugViews.ActiveView = ETemporalDebugView.None;
+			VisibilityBudgetManager.RestoreAll();
+			PerformanceSettingsCache.Invalidate("LinuxPerformanceDisableAll");
+		}
+
+		private static void DisableOptionalComponent<T>(GameObject host) where T : Behaviour
+		{
+			T component = host.GetComponent<T>();
+			if (component != null)
+				component.enabled = false;
 		}
 
 		private void OnDisable()
@@ -148,5 +194,6 @@ namespace SDG.Unturned.LinuxPerformance
 		}
 
 		private Camera cameraComponent;
+		private static readonly bool disableAllRequested = HasCommandLineArg(Environment.GetCommandLineArgs(), "-LinuxPerformanceDisableAll");
 	}
 }

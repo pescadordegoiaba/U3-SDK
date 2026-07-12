@@ -33,14 +33,30 @@ namespace SDG.Unturned
 			if (awakeLogs)
 				GetComponent<Logs>().awake();
 
+			SDG.Framework.Modules.ModuleHook moduleHook = GetComponent<SDG.Framework.Modules.ModuleHook>();
 			if (awakeModuleHook)
-				GetComponent<SDG.Framework.Modules.ModuleHook>().awake();
+				moduleHook.awake();
 
 			if (awakeProvider)
 				GetComponent<Provider>().awake();
+			if (Provider.WasQuitGameCalled)
+			{
+				UnturnedLog.error("Startup stopped after mandatory Provider dependency failure. ModuleHook, Glazier and LoadingUI will not be initialized.");
+				return;
+			}
 
 			if (startModuleHook)
-				GetComponent<SDG.Framework.Modules.ModuleHook>().start();
+				moduleHook.start();
+			if (moduleHook.HasFatalStartupError)
+			{
+				UnturnedLog.error("Startup aborted because mandatory core module initialization failed. Glazier and LoadingUI will not be created.");
+#if UNITY_EDITOR
+				UnityEditor.EditorApplication.ExitPlaymode();
+#else
+				Application.Quit(2);
+#endif
+				return;
+			}
 
 			if (startProvider)
 				GetComponent<Provider>().start();
@@ -48,6 +64,16 @@ namespace SDG.Unturned
 			if (!Dedicator.IsDedicatedServer)
 			{
 				GlazierFactory.Create();
+				if (Glazier.Get() == null)
+				{
+					UnturnedLog.error("Startup fatal: GlazierFactory did not register a mandatory Glazier implementation. LoadingUI will not be created.");
+#if UNITY_EDITOR
+					UnityEditor.EditorApplication.ExitPlaymode();
+#else
+					Application.Quit(3);
+#endif
+					return;
+				}
 			}
 
 			UnturnedPathfinding.Initialize();

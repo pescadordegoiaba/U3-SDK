@@ -76,6 +76,8 @@ namespace SDG.Unturned.LinuxPerformance
 		{
 			get
 			{
+				if (LinuxPerformanceBootstrap.IsDisableAllRequested)
+					return true;
 				PerformanceSettingsCache.RefreshIfDirty();
 				if (cachedVersion != PerformanceSettingsCache.Version)
 				{

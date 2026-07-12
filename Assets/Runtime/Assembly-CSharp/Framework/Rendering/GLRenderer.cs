@@ -27,9 +27,19 @@ namespace SDG.Framework.Rendering
 
 		private void OnRenderImage(RenderTexture source, RenderTexture destination)
 		{
+			RenderTexture previousActive = RenderTexture.active;
+			bool isLowResolutionPath = false;
+			try
+			{
+				if (LinuxPerformanceBootstrap.IsDisableAllRequested)
+				{
+					Graphics.Blit(source, destination);
+					return;
+				}
+
 			bool isMainCamera = cachedCamera == MainCamera.instance;
 			RenderTexture presentationTarget = null;
-			bool isLowResolutionPath = isMainCamera && LowResolutionWorldRenderer.TryGetPresentationTarget(cachedCamera, source, out presentationTarget);
+			isLowResolutionPath = isMainCamera && LowResolutionWorldRenderer.TryGetPresentationTarget(cachedCamera, source, out presentationTarget);
 			if (cachedCamera == MainCamera.instance)
 			{
 				int outputWidth = isLowResolutionPath && LowResolutionWorldRenderer.Instance != null ? LowResolutionWorldRenderer.Instance.OutputWidth : destination.width;
@@ -149,9 +159,36 @@ namespace SDG.Framework.Rendering
 
 			if (isLowResolutionPath)
 			{
-				LowResolutionWorldRenderer.Present(finalTarget);
+				if (finalTarget != null && finalTarget.IsCreated()
+					&& finalTarget.width == LowResolutionWorldRenderer.Instance.OutputWidth
+					&& finalTarget.height == LowResolutionWorldRenderer.Instance.OutputHeight)
+				{
+					Graphics.Blit(finalTarget, destination);
+				}
+				else
+				{
+					Graphics.Blit(source, destination);
+				}
+			}
+			}
+			catch (Exception exception)
+			{
+				if (!loggedRenderFailure)
+				{
+					loggedRenderFailure = true;
+					UnturnedLog.exception(exception, "GLRenderer caught render failure; writing native fallback and restoring camera state:");
+				}
+				Graphics.Blit(source, destination);
+			}
+			finally
+			{
 				LowResolutionWorldRenderer.CompleteFrame(cachedCamera);
+				RenderTexture.active = previousActive;
 			}
 		}
+
+		private void OnDisable() => LowResolutionWorldRenderer.CompleteFrame(cachedCamera);
+		private void OnDestroy() => LowResolutionWorldRenderer.CompleteFrame(cachedCamera);
+		private static bool loggedRenderFailure;
 	}
 }
