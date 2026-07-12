@@ -64,22 +64,9 @@ namespace SDG.Unturned.LinuxPerformance
 		public void PrepareCamera(Camera camera, ref TemporalFrameContext frame) { }
 		public bool Dispatch(ref TemporalFrameContext frame)
 		{
-			if (!TemporalInputCollector.IsReadyForTemporalUpscaling(frame, out string readinessReason))
-			{
-				// Resize/troca de câmera pode deixar depth ou motion vectors
-				// indisponíveis por um frame. Fazer fallback sem matar o backend.
-				StateReason = readinessReason;
-				return false;
-			}
 			if (!FidelityFxFsr2Native.Dispatch(ref frame))
 			{
-				string reason = FidelityFxFsr2Native.LastError;
-				if (IsTransientDispatchFailure(reason))
-				{
-					StateReason = "Fallback temporário FSR2: " + reason;
-					return false;
-				}
-				FailFatal(reason);
+				FailFatal(FidelityFxFsr2Native.LastError);
 				return false;
 			}
 			return true;
@@ -91,12 +78,7 @@ namespace SDG.Unturned.LinuxPerformance
 			if (FidelityFxFsr2Native.IsCreated && !FidelityFxFsr2Native.Resize(renderWidth, renderHeight, outputWidth, outputHeight, false, SystemInfo.usesReversedZBuffer))
 				FailFatal(FidelityFxFsr2Native.LastError);
 		}
-		public void Release()
-		{
-			FidelityFxFsr2Native.Release();
-			fatalDiagnosticFailure = false;
-			fatalDiagnosticReason = null;
-		}
+		public void Release() => FidelityFxFsr2Native.Release();
 		public bool Render(RenderTexture source, RenderTexture destination, in PerformanceSettings settings, in PerformanceTelemetry.FrameSnapshot telemetry)
 		{
 			if (!TemporalInputCollector.HasCurrentFrame)
@@ -124,16 +106,6 @@ namespace SDG.Unturned.LinuxPerformance
 				}
 			}
 			return Dispatch(ref frame);
-		}
-
-		private static bool IsTransientDispatchFailure(string reason)
-		{
-			if (string.IsNullOrEmpty(reason))
-				return false;
-			return reason.IndexOf("Ring FSR2 sem slot livre", System.StringComparison.OrdinalIgnoreCase) >= 0
-				|| reason.IndexOf("Depth ou motion vectors", System.StringComparison.OrdinalIgnoreCase) >= 0
-				|| reason.IndexOf("GetNativeTexturePtr retornou", System.StringComparison.OrdinalIgnoreCase) >= 0
-				|| reason.IndexOf("ainda não foram capturados", System.StringComparison.OrdinalIgnoreCase) >= 0;
 		}
 
 		private void FailFatal(string reason)

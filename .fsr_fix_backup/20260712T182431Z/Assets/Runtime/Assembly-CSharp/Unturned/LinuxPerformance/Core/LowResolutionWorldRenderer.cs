@@ -33,10 +33,6 @@ namespace SDG.Unturned.LinuxPerformance
 			if (renderWidth < outputWidth && (renderWidth & 1) != 0)
 				renderWidth = Mathf.Min(outputWidth, renderWidth + 1);
 			renderHeight = Mathf.Clamp(Mathf.RoundToInt(outputHeight * scale), 1, outputHeight);
-			if (renderHeight < outputHeight && (renderHeight & 1) != 0)
-				renderHeight = Mathf.Min(outputHeight, renderHeight + 1);
-			if (renderHeight < outputHeight && (renderHeight & 1) != 0)
-				renderHeight = Mathf.Min(outputHeight, renderHeight + 1);
 		}
 
 		public static bool TryGetPresentationTarget(Camera camera, RenderTexture source, out RenderTexture target)
@@ -49,13 +45,10 @@ namespace SDG.Unturned.LinuxPerformance
 			}
 
 			target = instance.upscaledColor;
-			if (source == null || target == null || !target.IsCreated()
-				|| source.width != instance.RenderWidth || source.height != instance.RenderHeight
-				|| target.width != instance.OutputWidth || target.height != instance.OutputHeight)
+			if (source == null || target == null || source.width != instance.RenderWidth || source.height != instance.RenderHeight || target.width != instance.OutputWidth || target.height != instance.OutputHeight)
 			{
 				instance.LogInvalidSourceOnce(source);
 				target = null;
-				return false;
 			}
 			return true;
 		}
@@ -112,9 +105,8 @@ namespace SDG.Unturned.LinuxPerformance
 				ResetCameraTarget();
 				return;
 			}
-			// O viewport real pode divergir de Screen (ex.: 1280x986 em janela).
-			OutputWidth = Mathf.Max(1, cameraComponent.pixelWidth > 0 ? cameraComponent.pixelWidth : Screen.width);
-			OutputHeight = Mathf.Max(1, cameraComponent.pixelHeight > 0 ? cameraComponent.pixelHeight : Screen.height);
+			OutputWidth = Mathf.Max(1, Screen.width);
+			OutputHeight = Mathf.Max(1, Screen.height);
 			CalculateDimensions(OutputWidth, OutputHeight, scale, out int renderWidth, out int renderHeight);
 			RenderWidth = renderWidth;
 			RenderHeight = renderHeight;

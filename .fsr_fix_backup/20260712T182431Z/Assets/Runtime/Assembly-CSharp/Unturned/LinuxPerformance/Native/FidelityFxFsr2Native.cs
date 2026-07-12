@@ -14,13 +14,7 @@ namespace SDG.Unturned.LinuxPerformance
 		private const uint AbiVersion = 4;
 		private const uint DispatchCommand = 2;
 		private const int RingSize = 8;
-		private const int SlotFree = -2;
-		private const int SlotError = -1;
-		private const int SlotFree = -2;
-		private const int SlotError = -1;
 		private const int Pending = 0;
-		private const int SlotComplete = 1;
-		private const int SlotComplete = 1;
 
 		[StructLayout(LayoutKind.Sequential)]
 		private struct CreateDescription
@@ -88,12 +82,6 @@ namespace SDG.Unturned.LinuxPerformance
 					LastError = GetLastError();
 					return false;
 				}
-				// Marcar antes de AllocateRing permite que o catch destrua o contexto
-				// nativo caso callback/event ID estejam inválidos.
-				IsCreated = true;
-				// Marcar antes de AllocateRing permite que o catch destrua o contexto
-				// nativo caso callback/event ID estejam inválidos.
-				IsCreated = true;
 				AllocateRing();
 				maxRenderWidth = description.RenderWidth;
 				maxRenderHeight = description.RenderHeight;
@@ -101,6 +89,7 @@ namespace SDG.Unturned.LinuxPerformance
 				outputHeight = description.OutputHeight;
 				createdHdr = description.Hdr;
 				createdInvertedDepth = description.InvertedDepth;
+				IsCreated = true;
 				LastError = "Contexto AMD FidelityFX FSR2 criado";
 				return true;
 			}
@@ -157,15 +146,11 @@ namespace SDG.Unturned.LinuxPerformance
 				DispatchParameters existing = Marshal.PtrToStructure<DispatchParameters>(pointer);
 				if (existing.status == Pending)
 					continue;
-				// -2 é slot livre. O código anterior tratava -2 como erro e
-				// impedia o primeiro dispatch FSR2.
-				if (existing.status == SlotError)
+				if (existing.status < 0)
 				{
 					LastError = GetLastError();
 					return false;
 				}
-				if (existing.status != SlotFree && existing.status != SlotComplete)
-					continue;
 				uint generation = ++nextGeneration;
 				DispatchParameters parameters = new DispatchParameters()
 				{
@@ -242,7 +227,6 @@ namespace SDG.Unturned.LinuxPerformance
 			eventCommands = null;
 			eventFunction = IntPtr.Zero;
 			nextSlot = 0;
-			nextGeneration = 0;
 		}
 
 		private static void AllocateRing()
@@ -251,14 +235,12 @@ namespace SDG.Unturned.LinuxPerformance
 				return;
 			eventFunction = GetRenderEventAndDataFunc();
 			eventId = u3ffx_get_vulkan_smoke_event_id();
-			if (eventFunction == IntPtr.Zero || eventId <= 0)
-				throw new InvalidOperationException("Callback/event ID Vulkan inválido para FSR2");
 			int stride = Marshal.SizeOf<DispatchParameters>();
 			ringMemory = Marshal.AllocHGlobal(stride * RingSize);
 			eventCommands = new CommandBuffer() { name = "LinuxPerformance.FSR2Events" };
 			for (int i = 0; i < RingSize; ++i)
 			{
-				DispatchParameters parameters = new DispatchParameters() { status = SlotFree };
+				DispatchParameters parameters = new DispatchParameters() { status = -2 };
 				Marshal.StructureToPtr(parameters, GetSlotPointer(i), false);
 			}
 		}

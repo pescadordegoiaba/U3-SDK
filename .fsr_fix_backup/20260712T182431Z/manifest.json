@@ -1,0 +1,12 @@
+{
+  "created_utc": "20260712T182431Z",
+  "files": [
+    "Assets/Resources/Shaders/LinuxPerformance/FSR1.shader",
+    "Assets/Runtime/Assembly-CSharp/Unturned/LinuxPerformance/Core/LinuxPerformanceBootstrap.cs",
+    "Assets/Runtime/Assembly-CSharp/Unturned/LinuxPerformance/Core/LowResolutionWorldRenderer.cs",
+    "Assets/Runtime/Assembly-CSharp/Unturned/LinuxPerformance/Native/FidelityFxFsr2Native.cs",
+    "Assets/Runtime/Assembly-CSharp/Unturned/LinuxPerformance/Temporal/TemporalCameraController.cs",
+    "Assets/Runtime/Assembly-CSharp/Unturned/LinuxPerformance/Upscaling/Fsr2Backend.cs"
+  ],
+  "version": 1
+}

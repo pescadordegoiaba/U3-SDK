@@ -1,0 +1,8 @@
+{
+  "created_utc": "20260712T182454Z",
+  "files": [
+    "Assets/Runtime/Assembly-CSharp/Unturned/LinuxPerformance/Core/LowResolutionWorldRenderer.cs",
+    "Assets/Runtime/Assembly-CSharp/Unturned/LinuxPerformance/Native/FidelityFxFsr2Native.cs"
+  ],
+  "version": 1
+}

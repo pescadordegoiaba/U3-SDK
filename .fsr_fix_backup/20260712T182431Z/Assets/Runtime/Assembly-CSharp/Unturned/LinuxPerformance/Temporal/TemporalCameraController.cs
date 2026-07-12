@@ -75,7 +75,6 @@ namespace SDG.Unturned.LinuxPerformance
 
 		private void OnDestroy()
 		{
-			RestoreProjectionIfNeeded();
 			MainCamera.instanceChanged -= OnMainCameraInstanceChanged;
 			Level.onLevelLoaded -= OnLevelLoaded;
 			Player.onPlayerCreated -= OnPlayerCreated;
@@ -99,12 +98,8 @@ namespace SDG.Unturned.LinuxPerformance
 			nonJitteredProjection = originalProjection;
 
 			PerformanceSettings settings = PerformanceSettingsCache.Current;
-			float renderScale = settings.DynamicResolution
-				? DynamicResolutionController.CurrentScale
-				: settings.GetPresetScale();
-			int outputWidth = Mathf.Max(1, cameraComponent.pixelWidth > 0 ? cameraComponent.pixelWidth : Screen.width);
-			int outputHeight = Mathf.Max(1, cameraComponent.pixelHeight > 0 ? cameraComponent.pixelHeight : Screen.height);
-			LowResolutionWorldRenderer.CalculateDimensions(outputWidth, outputHeight, renderScale, out int renderWidth, out int renderHeight);
+			int renderWidth = Mathf.Max(1, Mathf.RoundToInt(Screen.width * settings.GetPresetScale()));
+			int renderHeight = Mathf.Max(1, Mathf.RoundToInt(Screen.height * settings.GetPresetScale()));
 			Vector2 jitter = TemporalJitter.GetHalton23(frameIndex, renderWidth, renderHeight);
 			Matrix4x4 jitteredProjection = nonJitteredProjection;
 			jitteredProjection.m02 += jitter.x * 2.0f;
@@ -126,8 +121,8 @@ namespace SDG.Unturned.LinuxPerformance
 				MotionVectorScale = new Vector2(renderWidth, renderHeight),
 				RenderWidth = renderWidth,
 				RenderHeight = renderHeight,
-				OutputWidth = outputWidth,
-				OutputHeight = outputHeight,
+				OutputWidth = Screen.width,
+				OutputHeight = Screen.height,
 				DeltaTimeMilliseconds = Time.unscaledDeltaTime * 1000.0f,
 				NearPlane = cameraComponent.nearClipPlane,
 				FarPlane = cameraComponent.farClipPlane,
@@ -141,31 +136,18 @@ namespace SDG.Unturned.LinuxPerformance
 
 		private void OnPostRender()
 		{
-			if (cameraComponent == null || !didApplyJitterThisFrame)
+			if (cameraComponent == null)
+				return;
+			if (!didApplyJitterThisFrame || !IsTemporalActive)
 				return;
 
-			// O backend pode cair para FSR1 durante OnRenderImage. Mesmo assim
-			// a projeção temporal aplicada no começo do frame deve ser restaurada.
-			RestoreProjectionIfNeeded();
+			if (cameraComponent.projectionMatrix != nonJitteredProjection)
+				cameraComponent.projectionMatrix = nonJitteredProjection;
 
 			previousViewProjection = GL.GetGPUProjectionMatrix(nonJitteredProjection, true) * cameraComponent.worldToCameraMatrix;
 			previousFieldOfView = cameraComponent.fieldOfView;
 			pendingReset = false;
 			++frameIndex;
-		}
-
-		private void OnDisable()
-		{
-			RestoreProjectionIfNeeded();
-		}
-
-		private void RestoreProjectionIfNeeded()
-		{
-			if (cameraComponent != null && didApplyJitterThisFrame)
-			{
-				cameraComponent.projectionMatrix = nonJitteredProjection;
-				cameraComponent.nonJitteredProjectionMatrix = nonJitteredProjection;
-			}
 			didApplyJitterThisFrame = false;
 		}
 

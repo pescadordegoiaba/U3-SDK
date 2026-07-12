@@ -50,39 +50,19 @@ namespace SDG.Unturned.LinuxPerformance
 		private IEnumerator Start()
 		{
 			ApplyTemporalDebugCommandLine();
-			string[] commandLineArgs = Environment.GetCommandLineArgs();
-			bool explicitSmokeRequested = ShouldRunVulkanSmoke(commandLineArgs);
-			bool delayedFsr2SmokeRequested = IsFsr2DiagnosticForced && !explicitSmokeRequested;
-			if ((explicitSmokeRequested || delayedFsr2SmokeRequested)
-				&& SystemInfo.graphicsDeviceType == UnityEngine.Rendering.GraphicsDeviceType.Vulkan)
+			if (ShouldRunVulkanSmoke(Environment.GetCommandLineArgs()) && SystemInfo.graphicsDeviceType == UnityEngine.Rendering.GraphicsDeviceType.Vulkan)
 			{
-				bool canRunSmoke = true;
-				if (delayedFsr2SmokeRequested)
+				bool smokePassed = false;
+				string smokeReason = "Não executado";
+				yield return NativeVulkanBridge.ValidateSmokeCoroutine((passed, reason) =>
 				{
-					// Evita compute/readback durante ModuleHook, Glazier e LoadingUI.
-					float smokeDeadline = Time.realtimeSinceStartup + 180.0f;
-					while ((!Level.isLoaded || Player.LocalPlayer == null || LoadingUI.isBlocked)
-						&& Time.realtimeSinceStartup < smokeDeadline)
-						yield return null;
-					canRunSmoke = Level.isLoaded && Player.LocalPlayer != null && !LoadingUI.isBlocked;
-					if (!canRunSmoke)
-						UnturnedLog.warn("Linux Performance: gameplay não ficou pronto para smoke FSR2");
-				}
-
-				if (canRunSmoke)
-				{
-					bool smokePassed = false;
-					string smokeReason = "Não executado";
-					yield return NativeVulkanBridge.ValidateSmokeCoroutine((passed, reason) =>
-					{
-						smokePassed = passed;
-						smokeReason = reason;
-					});
-					if (smokePassed)
-						UnturnedLog.info("Linux Performance: {0}", smokeReason);
-					else
-						UnturnedLog.warn("Linux Performance: smoke Vulkan não validado: {0}", smokeReason);
-				}
+					smokePassed = passed;
+					smokeReason = reason;
+				});
+				if (smokePassed)
+					UnturnedLog.info("Linux Performance: {0}", smokeReason);
+				else
+					UnturnedLog.warn("Linux Performance: smoke Vulkan não validado: {0}", smokeReason);
 			}
 
 			bool captureStartup = HasCommandLineArg("-LinuxPerformanceCapture");

@@ -25,7 +25,6 @@ Shader "Hidden/Unturned/LinuxPerformance/FSR1"
 		#define FSR_RCAS_LIMIT (0.25 - (1.0 / 16.0))
 
 		sampler2D _MainTex;
-		float4 _MainTex_TexelSize;
 		float4 _SourceSize; // xy = input size, zw = input texel size
 		float4 _OutputSize; // xy = output size, zw = output texel size
 		float _Sharpness;
@@ -47,10 +46,6 @@ Shader "Hidden/Unturned/LinuxPerformance/FSR1"
 			v2f o;
 			o.vertex = UnityObjectToClipPos(v.vertex);
 			o.uv = v.uv;
-			#if UNITY_UV_STARTS_AT_TOP
-			if (_MainTex_TexelSize.y < 0.0)
-				o.uv.y = 1.0 - o.uv.y;
-			#endif
 			return o;
 		}
 
@@ -142,9 +137,7 @@ Shader "Hidden/Unturned/LinuxPerformance/FSR1"
 
 		float4 FsrEasu(float2 uv)
 		{
-			// EASU espera índice inteiro do pixel. O centro UV adicionava
-			// meio pixel e causava deslocamento/blur.
-			float2 outputPixel = min(floor(saturate(uv) * _OutputSize.xy), _OutputSize.xy - 1.0);
+			float2 outputPixel = uv * _OutputSize.xy;
 
 			float inputViewportX = _SourceSize.x;
 			float inputViewportY = _SourceSize.y;
