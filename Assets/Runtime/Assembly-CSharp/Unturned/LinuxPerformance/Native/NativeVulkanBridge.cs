@@ -17,10 +17,17 @@ namespace SDG.Unturned.LinuxPerformance
 		public const int SmokeStatusError = -1;
 		private const int SlotFree = -2;
 		private const int RingSize = 8;
+		private const uint AbiVersion = 3;
+		private const uint VulkanSmokeCommand = 1;
 
 		[StructLayout(LayoutKind.Sequential)]
 		private struct SmokeParameters
 		{
+			public uint struct_size;
+			public uint abi_version;
+			public uint command;
+			public uint frame_slot;
+			public IntPtr source_texture;
 			public IntPtr output_texture;
 			public uint width;
 			public uint height;
@@ -83,18 +90,20 @@ namespace SDG.Unturned.LinuxPerformance
 			}
 		}
 
-		public static bool TryIssueSmoke(RenderTexture output, out SmokeTicket ticket)
+		public static bool TryIssueSmoke(RenderTexture source, RenderTexture output, out SmokeTicket ticket)
 		{
 			ticket = default;
-			if (!Initialize() || output == null || !output.IsCreated() || !output.enableRandomWrite)
+			if (!Initialize() || source == null || output == null || !source.IsCreated() || !output.IsCreated()
+				|| !source.enableRandomWrite || !output.enableRandomWrite || source.width != output.width || source.height != output.height)
 			{
-				StateReason = "Output do smoke deve existir e usar enableRandomWrite";
+				StateReason = "Source/output do smoke devem existir, usar enableRandomWrite e ter dimensões iguais";
 				return false;
 			}
-			IntPtr nativeTexture = output.GetNativeTexturePtr();
-			if (nativeTexture == IntPtr.Zero)
+			IntPtr nativeSource = source.GetNativeTexturePtr();
+			IntPtr nativeOutput = output.GetNativeTexturePtr();
+			if (nativeSource == IntPtr.Zero || nativeOutput == IntPtr.Zero || nativeSource == nativeOutput)
 			{
-				StateReason = "GetNativeTexturePtr retornou zero";
+				StateReason = "GetNativeTexturePtr retornou recurso inválido ou source/output iguais";
 				return false;
 			}
 
@@ -107,7 +116,12 @@ namespace SDG.Unturned.LinuxPerformance
 				uint frameIndex = ++nextFrameIndex;
 				SmokeParameters parameters = new SmokeParameters()
 				{
-					output_texture = nativeTexture,
+					struct_size = (uint)Marshal.SizeOf<SmokeParameters>(),
+					abi_version = AbiVersion,
+					command = VulkanSmokeCommand,
+					frame_slot = (uint)slot,
+					source_texture = nativeSource,
+					output_texture = nativeOutput,
 					width = (uint)output.width,
 					height = (uint)output.height,
 					frame_index = frameIndex,
@@ -178,6 +192,12 @@ namespace SDG.Unturned.LinuxPerformance
 				yield break;
 			}
 
+			RenderTexture source = new RenderTexture(64, 64, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear)
+			{
+				name = "LinuxPerformance.VulkanSmokeSource",
+				enableRandomWrite = true,
+				antiAliasing = 1,
+			};
 			RenderTexture target = new RenderTexture(64, 64, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear)
 			{
 				name = "LinuxPerformance.VulkanSmokeOutput",
@@ -187,16 +207,18 @@ namespace SDG.Unturned.LinuxPerformance
 			Texture2D readback = null;
 			try
 			{
-				if (!target.Create())
+				if (!source.Create() || !target.Create())
 				{
-					completed?.Invoke(false, "Falha ao criar output do smoke Vulkan");
+					completed?.Invoke(false, "Falha ao criar source/output do smoke Vulkan");
 					yield break;
 				}
 				RenderTexture previous = RenderTexture.active;
+				RenderTexture.active = source;
+				GL.Clear(false, true, new Color(0.2f, 0.6f, 0.3f, 1f));
 				RenderTexture.active = target;
 				GL.Clear(false, true, Color.black);
 				RenderTexture.active = previous;
-				if (!TryIssueSmoke(target, out SmokeTicket ticket))
+				if (!TryIssueSmoke(source, target, out SmokeTicket ticket))
 				{
 					completed?.Invoke(false, StateReason);
 					yield break;
@@ -224,7 +246,8 @@ namespace SDG.Unturned.LinuxPerformance
 				readback.Apply(false, false);
 				RenderTexture.active = previous;
 				Color pixel = readback.GetPixel(0, 0);
-				bool validPixel = pixel.g > 0.55f && pixel.r > 0.05f && pixel.r < 0.3f && pixel.b > 0.1f && pixel.b < 0.45f && pixel.a > 0.9f;
+				bool validPixel = pixel.r > 0.7f && pixel.r < 0.9f && pixel.g > 0.5f && pixel.g < 0.7f
+					&& pixel.b > 0.2f && pixel.b < 0.4f && pixel.a > 0.9f;
 				if (!validPixel || !MarkSmokeValidated())
 				{
 					completed?.Invoke(false, $"Readback inesperado: {pixel}");
@@ -236,6 +259,8 @@ namespace SDG.Unturned.LinuxPerformance
 			{
 				if (readback != null)
 					UnityEngine.Object.Destroy(readback);
+				source.Release();
+				UnityEngine.Object.Destroy(source);
 				target.Release();
 				UnityEngine.Object.Destroy(target);
 			}

@@ -14,6 +14,7 @@ extern "C"
 	static const int32_t U3FFX_SMOKE_STATUS_PENDING = 0;
 	static const int32_t U3FFX_SMOKE_STATUS_RECORDED = 1;
 	static const int32_t U3FFX_SMOKE_STATUS_ERROR = -1;
+	static const uint32_t U3FFX_COMMAND_VULKAN_SMOKE = 1;
 
 	enum U3FfxBackendKind
 	{
@@ -38,6 +39,11 @@ extern "C"
 
 	struct U3FfxVulkanSmokeParameters
 	{
+		uint32_t struct_size;
+		uint32_t abi_version;
+		uint32_t command;
+		uint32_t frame_slot;
+		void* source_texture;
 		void* output_texture;
 		uint32_t width;
 		uint32_t height;
@@ -51,8 +57,6 @@ extern "C"
 	U3FFX_API int32_t u3ffx_get_vulkan_smoke_event_id();
 	U3FFX_API int32_t u3ffx_get_vulkan_smoke_state();
 	U3FFX_API int32_t u3ffx_mark_vulkan_smoke_validated(int32_t validated);
-	U3FFX_API void UnityPluginLoad(void* unityInterfaces);
-	U3FFX_API void UnityPluginUnload();
 	typedef void (*U3FfxUnityRenderingEvent)(int32_t eventId);
 	typedef void (*U3FfxUnityRenderingEventAndData)(int32_t eventId, void* data);
 	U3FFX_API U3FfxUnityRenderingEvent GetRenderEventFunc();

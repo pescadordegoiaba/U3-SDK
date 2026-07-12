@@ -1,7 +1,8 @@
 #version 450
 
 layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
-layout(set = 0, binding = 0, rgba8) uniform writeonly image2D output_image;
+layout(set = 0, binding = 0, rgba8) uniform readonly image2D source_image;
+layout(set = 0, binding = 1, rgba8) uniform writeonly image2D output_image;
 
 void main()
 {
@@ -9,5 +10,6 @@ void main()
 	ivec2 size = imageSize(output_image);
 	if (pixel.x >= size.x || pixel.y >= size.y)
 		return;
-	imageStore(output_image, pixel, vec4(0.125, 0.75, 0.25, 1.0));
+	vec4 source_value = imageLoad(source_image, pixel);
+	imageStore(output_image, pixel, vec4(1.0 - source_value.r, source_value.g, source_value.b, 1.0));
 }

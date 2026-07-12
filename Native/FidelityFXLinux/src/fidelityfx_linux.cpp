@@ -15,7 +15,8 @@ constexpr uint32_t kFramesInFlight = 8;
 
 struct SmokeFrameResources
 {
-	VkImageView image_view = VK_NULL_HANDLE;
+	VkImageView source_image_view = VK_NULL_HANDLE;
+	VkImageView output_image_view = VK_NULL_HANDLE;
 	VkDescriptorSet descriptor_set = VK_NULL_HANDLE;
 	uint64_t frame_number = 0;
 };
@@ -32,6 +33,7 @@ VkPipeline g_pipeline = VK_NULL_HANDLE;
 int32_t g_smoke_event_id = 0x55F200;
 std::atomic<int32_t> g_smoke_state{U3FFX_SMOKE_STATUS_PENDING};
 std::atomic<bool> g_smoke_validated{false};
+std::atomic<bool> g_accept_dispatches{false};
 std::array<SmokeFrameResources, kFramesInFlight> g_frames;
 
 void copy_message(char* destination, const char* source)
@@ -52,8 +54,10 @@ void release_frame_resources(SmokeFrameResources& frame)
 {
 	if (g_device == VK_NULL_HANDLE)
 		return;
-	if (frame.image_view != VK_NULL_HANDLE)
-		vkDestroyImageView(g_device, frame.image_view, nullptr);
+	if (frame.source_image_view != VK_NULL_HANDLE)
+		vkDestroyImageView(g_device, frame.source_image_view, nullptr);
+	if (frame.output_image_view != VK_NULL_HANDLE)
+		vkDestroyImageView(g_device, frame.output_image_view, nullptr);
 	if (frame.descriptor_set != VK_NULL_HANDLE && g_descriptor_pool != VK_NULL_HANDLE)
 		vkFreeDescriptorSets(g_device, g_descriptor_pool, 1, &frame.descriptor_set);
 	frame = {};
@@ -63,7 +67,7 @@ void collect_completed_frames(uint64_t safe_frame_number)
 {
 	for (SmokeFrameResources& frame : g_frames)
 	{
-		if (frame.image_view != VK_NULL_HANDLE && frame.frame_number <= safe_frame_number)
+		if (frame.output_image_view != VK_NULL_HANDLE && frame.frame_number <= safe_frame_number)
 			release_frame_resources(frame);
 	}
 }
@@ -107,14 +111,17 @@ bool create_vulkan_resources()
 	}
 	g_device = instance.device;
 
-	VkDescriptorSetLayoutBinding binding{};
-	binding.binding = 0;
-	binding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-	binding.descriptorCount = 1;
-	binding.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+	VkDescriptorSetLayoutBinding bindings[2]{};
+	for (uint32_t i = 0; i < 2; ++i)
+	{
+		bindings[i].binding = i;
+		bindings[i].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+		bindings[i].descriptorCount = 1;
+		bindings[i].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+	}
 	VkDescriptorSetLayoutCreateInfo descriptor_layout_info{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
-	descriptor_layout_info.bindingCount = 1;
-	descriptor_layout_info.pBindings = &binding;
+	descriptor_layout_info.bindingCount = 2;
+	descriptor_layout_info.pBindings = bindings;
 	if (vkCreateDescriptorSetLayout(g_device, &descriptor_layout_info, nullptr, &g_descriptor_set_layout) != VK_SUCCESS)
 	{
 		set_error("vkCreateDescriptorSetLayout falhou");
@@ -123,7 +130,7 @@ bool create_vulkan_resources()
 
 	VkDescriptorPoolSize pool_size{};
 	pool_size.type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-	pool_size.descriptorCount = kFramesInFlight;
+	pool_size.descriptorCount = kFramesInFlight * 2;
 	VkDescriptorPoolCreateInfo pool_info{VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
 	pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
 	pool_info.maxSets = kFramesInFlight;
@@ -170,6 +177,7 @@ bool create_vulkan_resources()
 
 	copy_message(g_last_error, "Bridge Vulkan inicializado; smoke aguardando validação de imagem");
 	g_smoke_state.store(U3FFX_SMOKE_STATUS_PENDING, std::memory_order_release);
+	g_accept_dispatches.store(true, std::memory_order_release);
 	return true;
 }
 
@@ -195,6 +203,7 @@ void UNITY_INTERFACE_API on_graphics_device_event(UnityGfxDeviceEventType event_
 	}
 	else if (event_type == kUnityGfxDeviceEventShutdown || event_type == kUnityGfxDeviceEventBeforeReset)
 	{
+		g_accept_dispatches.store(false, std::memory_order_release);
 		destroy_vulkan_resources();
 		g_unity_vulkan = nullptr;
 		g_smoke_validated.store(false, std::memory_order_release);
@@ -213,9 +222,20 @@ void dispatch_smoke(U3FfxVulkanSmokeParameters* parameters)
 		return;
 	}
 	parameters->status = U3FFX_SMOKE_STATUS_ERROR;
-	if (g_unity_vulkan == nullptr || g_pipeline == VK_NULL_HANDLE || parameters->output_texture == nullptr)
+	if (!g_accept_dispatches.load(std::memory_order_acquire) || g_unity_vulkan == nullptr || g_pipeline == VK_NULL_HANDLE)
 	{
-		set_error("Bridge Vulkan ou textura de saída indisponível");
+		set_error("Bridge Vulkan não aceita novos dispatches");
+		return;
+	}
+	if (parameters->struct_size < sizeof(U3FfxVulkanSmokeParameters) || parameters->abi_version != static_cast<uint32_t>(U3FFX_ABI_VERSION)
+		|| parameters->command != U3FFX_COMMAND_VULKAN_SMOKE || parameters->frame_slot >= kFramesInFlight)
+	{
+		set_error("ABI ou comando inválido nos parâmetros do smoke Vulkan");
+		return;
+	}
+	if (parameters->source_texture == nullptr || parameters->output_texture == nullptr || parameters->width == 0 || parameters->height == 0)
+	{
+		set_error("Texturas ou dimensões inválidas no smoke Vulkan");
 		return;
 	}
 
@@ -226,28 +246,42 @@ void dispatch_smoke(U3FfxVulkanSmokeParameters* parameters)
 		return;
 	}
 	collect_completed_frames(before_access.safeFrameNumber);
-	SmokeFrameResources& frame = g_frames[parameters->frame_index % kFramesInFlight];
-	if (frame.image_view != VK_NULL_HANDLE)
+	SmokeFrameResources& frame = g_frames[parameters->frame_slot];
+	if (frame.output_image_view != VK_NULL_HANDLE)
 	{
 		set_error("Ring Vulkan cheio; frame ainda em voo");
 		return;
 	}
 
-	UnityVulkanImage image{};
+	UnityVulkanImage source_image{};
+	if (!g_unity_vulkan->AccessTexture(parameters->source_texture, UnityVulkanWholeImage, VK_IMAGE_LAYOUT_GENERAL,
+		VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT, kUnityVulkanResourceAccess_PipelineBarrier, &source_image))
+	{
+		set_error("AccessTexture falhou para source do smoke");
+		return;
+	}
+	UnityVulkanImage output_image{};
 	if (!g_unity_vulkan->AccessTexture(parameters->output_texture, UnityVulkanWholeImage, VK_IMAGE_LAYOUT_GENERAL,
-		VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT, kUnityVulkanResourceAccess_PipelineBarrier, &image))
+		VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT, kUnityVulkanResourceAccess_PipelineBarrier, &output_image))
 	{
 		set_error("AccessTexture falhou para output do smoke");
 		return;
 	}
-	if ((image.usage & VK_IMAGE_USAGE_STORAGE_BIT) == 0 || (image.aspect & VK_IMAGE_ASPECT_COLOR_BIT) == 0)
+	if ((source_image.usage & VK_IMAGE_USAGE_STORAGE_BIT) == 0 || (output_image.usage & VK_IMAGE_USAGE_STORAGE_BIT) == 0
+		|| (source_image.aspect & VK_IMAGE_ASPECT_COLOR_BIT) == 0 || (output_image.aspect & VK_IMAGE_ASPECT_COLOR_BIT) == 0)
 	{
 		set_error("RenderTexture não possui VK_IMAGE_USAGE_STORAGE_BIT color");
 		return;
 	}
-	if (image.format != VK_FORMAT_R8G8B8A8_UNORM)
+	if (source_image.format != VK_FORMAT_R8G8B8A8_UNORM || output_image.format != VK_FORMAT_R8G8B8A8_UNORM)
 	{
-		set_error("Formato do output smoke não é VK_FORMAT_R8G8B8A8_UNORM");
+		set_error("Formato source/output smoke não é VK_FORMAT_R8G8B8A8_UNORM");
+		return;
+	}
+	if (source_image.extent.width != output_image.extent.width || source_image.extent.height != output_image.extent.height
+		|| output_image.extent.width != parameters->width || output_image.extent.height != parameters->height)
+	{
+		set_error("Dimensões reais source/output divergem dos parâmetros do smoke");
 		return;
 	}
 
@@ -259,15 +293,23 @@ void dispatch_smoke(U3FfxVulkanSmokeParameters* parameters)
 	}
 
 	VkImageViewCreateInfo view_info{VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
-	view_info.image = image.image;
+	view_info.image = source_image.image;
 	view_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
-	view_info.format = image.format;
+	view_info.format = source_image.format;
 	view_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 	view_info.subresourceRange.levelCount = 1;
 	view_info.subresourceRange.layerCount = 1;
-	if (vkCreateImageView(g_device, &view_info, nullptr, &frame.image_view) != VK_SUCCESS)
+	if (vkCreateImageView(g_device, &view_info, nullptr, &frame.source_image_view) != VK_SUCCESS)
 	{
-		set_error("vkCreateImageView falhou");
+		set_error("vkCreateImageView falhou para source");
+		return;
+	}
+	view_info.image = output_image.image;
+	view_info.format = output_image.format;
+	if (vkCreateImageView(g_device, &view_info, nullptr, &frame.output_image_view) != VK_SUCCESS)
+	{
+		release_frame_resources(frame);
+		set_error("vkCreateImageView falhou para output");
 		return;
 	}
 
@@ -282,21 +324,27 @@ void dispatch_smoke(U3FfxVulkanSmokeParameters* parameters)
 		return;
 	}
 
-	VkDescriptorImageInfo descriptor_image{};
-	descriptor_image.imageView = frame.image_view;
-	descriptor_image.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
-	VkWriteDescriptorSet write{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
-	write.dstSet = frame.descriptor_set;
-	write.dstBinding = 0;
-	write.descriptorCount = 1;
-	write.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-	write.pImageInfo = &descriptor_image;
-	vkUpdateDescriptorSets(g_device, 1, &write, 0, nullptr);
+	VkDescriptorImageInfo descriptor_images[2]{};
+	descriptor_images[0].imageView = frame.source_image_view;
+	descriptor_images[0].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+	descriptor_images[1].imageView = frame.output_image_view;
+	descriptor_images[1].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+	VkWriteDescriptorSet writes[2]{};
+	for (uint32_t i = 0; i < 2; ++i)
+	{
+		writes[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		writes[i].dstSet = frame.descriptor_set;
+		writes[i].dstBinding = i;
+		writes[i].descriptorCount = 1;
+		writes[i].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+		writes[i].pImageInfo = &descriptor_images[i];
+	}
+	vkUpdateDescriptorSets(g_device, 2, writes, 0, nullptr);
 
 	vkCmdBindPipeline(recording.commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, g_pipeline);
 	vkCmdBindDescriptorSets(recording.commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, g_pipeline_layout, 0, 1, &frame.descriptor_set, 0, nullptr);
-	uint32_t width = image.extent.width;
-	uint32_t height = image.extent.height;
+	uint32_t width = output_image.extent.width;
+	uint32_t height = output_image.extent.height;
 	vkCmdDispatch(recording.commandBuffer, (width + 7u) / 8u, (height + 7u) / 8u, 1);
 	frame.frame_number = recording.currentFrameNumber;
 	parameters->width = width;
@@ -366,9 +414,9 @@ U3FFX_API int32_t u3ffx_mark_vulkan_smoke_validated(int32_t validated)
 	return can_validate ? 1 : 0;
 }
 
-U3FFX_API void UnityPluginLoad(void* unity_interfaces)
+void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UnityPluginLoad(IUnityInterfaces* unity_interfaces)
 {
-	g_unity_interfaces = static_cast<IUnityInterfaces*>(unity_interfaces);
+	g_unity_interfaces = unity_interfaces;
 	g_unity_graphics = g_unity_interfaces != nullptr ? g_unity_interfaces->Get<IUnityGraphics>() : nullptr;
 	if (g_unity_graphics == nullptr)
 	{
@@ -382,8 +430,9 @@ U3FFX_API void UnityPluginLoad(void* unity_interfaces)
 	on_graphics_device_event(kUnityGfxDeviceEventInitialize);
 }
 
-U3FFX_API void UnityPluginUnload()
+void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UnityPluginUnload()
 {
+	g_accept_dispatches.store(false, std::memory_order_release);
 	if (g_unity_graphics != nullptr)
 		g_unity_graphics->UnregisterDeviceEventCallback(on_graphics_device_event);
 	destroy_vulkan_resources();
