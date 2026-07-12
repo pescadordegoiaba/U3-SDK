@@ -16,10 +16,7 @@ namespace SDG.Unturned.LinuxPerformance
 		private const int RingSize = 8;
 		private const int SlotFree = -2;
 		private const int SlotError = -1;
-		private const int SlotFree = -2;
-		private const int SlotError = -1;
 		private const int Pending = 0;
-		private const int SlotComplete = 1;
 		private const int SlotComplete = 1;
 
 		[StructLayout(LayoutKind.Sequential)]
@@ -88,9 +85,6 @@ namespace SDG.Unturned.LinuxPerformance
 					LastError = GetLastError();
 					return false;
 				}
-				// Marcar antes de AllocateRing permite que o catch destrua o contexto
-				// nativo caso callback/event ID estejam inválidos.
-				IsCreated = true;
 				// Marcar antes de AllocateRing permite que o catch destrua o contexto
 				// nativo caso callback/event ID estejam inválidos.
 				IsCreated = true;

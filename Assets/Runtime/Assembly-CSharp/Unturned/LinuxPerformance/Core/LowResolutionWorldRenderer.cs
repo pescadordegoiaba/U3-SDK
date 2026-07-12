@@ -35,8 +35,6 @@ namespace SDG.Unturned.LinuxPerformance
 			renderHeight = Mathf.Clamp(Mathf.RoundToInt(outputHeight * scale), 1, outputHeight);
 			if (renderHeight < outputHeight && (renderHeight & 1) != 0)
 				renderHeight = Mathf.Min(outputHeight, renderHeight + 1);
-			if (renderHeight < outputHeight && (renderHeight & 1) != 0)
-				renderHeight = Mathf.Min(outputHeight, renderHeight + 1);
 		}
 
 		public static bool TryGetPresentationTarget(Camera camera, RenderTexture source, out RenderTexture target)
