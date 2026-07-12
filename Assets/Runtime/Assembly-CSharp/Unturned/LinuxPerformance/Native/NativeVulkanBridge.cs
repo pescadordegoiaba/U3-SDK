@@ -17,7 +17,7 @@ namespace SDG.Unturned.LinuxPerformance
 		public const int SmokeStatusError = -1;
 		private const int SlotFree = -2;
 		private const int RingSize = 8;
-		private const uint AbiVersion = 3;
+		private const uint AbiVersion = 4;
 		private const uint VulkanSmokeCommand = 1;
 
 		[StructLayout(LayoutKind.Sequential)]

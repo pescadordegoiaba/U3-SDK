@@ -58,7 +58,9 @@ namespace SDG.Framework.Rendering
 				TemporalInputCollector.Clear();
 			}
 			// Blit must always be called.
-			if (!isMainCamera || finalTarget == null || !UpscalerManager.Render(source, finalTarget))
+			if (finalTarget == null)
+				finalTarget = destination;
+			if (!isMainCamera || !UpscalerManager.Render(source, finalTarget))
 			{
 				Graphics.Blit(source, finalTarget);
 			}

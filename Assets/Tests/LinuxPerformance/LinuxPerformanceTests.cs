@@ -496,6 +496,21 @@ namespace SDG.Unturned.Tests
 		}
 
 		[Test]
+		public void Fsr2RemainsUnavailableWithoutVisuallyValidatedMotionVectors()
+		{
+			Fsr2Backend backend = new Fsr2Backend();
+			LinuxGraphicsCapabilities capabilities = new LinuxGraphicsCapabilities()
+			{
+				NativePluginLoaded = true,
+				IsVulkan = true,
+				NativePluginHasVulkanBackend = true,
+				NativePluginHasFsr2 = true,
+			};
+			Assert.IsFalse(backend.IsAvailable(capabilities));
+			StringAssert.Contains("Motion vectors", backend.StateReason);
+		}
+
+		[Test]
 		public void NativePluginAbiQueryDoesNotThrow()
 		{
 			int version = 0;

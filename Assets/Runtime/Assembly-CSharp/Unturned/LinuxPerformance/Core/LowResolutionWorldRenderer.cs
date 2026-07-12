@@ -3,6 +3,7 @@
 // Please refer to the included LICENSE.txt for copyright notice and license details. //
 ////////////////////////////////////////////////////////////////////////////////////////
 using UnityEngine;
+using UnityEngine.Experimental.Rendering;
 
 namespace SDG.Unturned.LinuxPerformance
 {
@@ -164,7 +165,7 @@ namespace SDG.Unturned.LinuxPerformance
 			bool renderScaleChanged = sceneColorLowRes != null && (sceneColorLowRes.width != renderWidth || sceneColorLowRes.height != renderHeight);
 			ReleaseTargets();
 			sceneColorLowRes = CreateTarget(renderWidth, renderHeight, 0, colorFormat, "LinuxPerformance.SceneColorLowRes");
-			sceneDepthLowRes = CreateTarget(renderWidth, renderHeight, 24, RenderTextureFormat.Depth, "LinuxPerformance.SceneDepthLowRes");
+			sceneDepthLowRes = CreateDepthTarget(renderWidth, renderHeight, "LinuxPerformance.SceneDepthLowRes");
 			upscaledColor = CreateTarget(outputWidth, outputHeight, 0, colorFormat, "LinuxPerformance.UpscaledColor");
 			RenderTextureFormat motionFormat = SystemInfo.SupportsRenderTextureFormat(RenderTextureFormat.RGHalf) ? RenderTextureFormat.RGHalf : RenderTextureFormat.ARGBHalf;
 			RenderTextureFormat maskFormat = SystemInfo.SupportsRenderTextureFormat(RenderTextureFormat.R8) ? RenderTextureFormat.R8 : RenderTextureFormat.ARGB32;
@@ -196,8 +197,32 @@ namespace SDG.Unturned.LinuxPerformance
 				name = name,
 				useMipMap = false,
 				autoGenerateMips = false,
+				enableRandomWrite = depthBits == 0,
 				antiAliasing = 1,
 				filterMode = FilterMode.Bilinear,
+				wrapMode = TextureWrapMode.Clamp,
+			};
+			if (target.Create())
+				return target;
+			Destroy(target);
+			return null;
+		}
+
+		private static RenderTexture CreateDepthTarget(int width, int height, string name)
+		{
+			RenderTextureDescriptor descriptor = new RenderTextureDescriptor(width, height)
+			{
+				graphicsFormat = GraphicsFormat.None,
+				depthStencilFormat = GraphicsFormat.D32_SFloat,
+				msaaSamples = 1,
+				useMipMap = false,
+				autoGenerateMips = false,
+				enableRandomWrite = false,
+			};
+			RenderTexture target = new RenderTexture(descriptor)
+			{
+				name = name,
+				filterMode = FilterMode.Point,
 				wrapMode = TextureWrapMode.Clamp,
 			};
 			if (target.Create())

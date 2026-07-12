@@ -9,7 +9,7 @@ namespace SDG.Unturned.LinuxPerformance
 {
 	public static class NativeRenderBackend
 	{
-		public const int ExpectedAbiVersion = 3;
+		public const int ExpectedAbiVersion = 4;
 
 		public struct PluginCapabilities
 		{
@@ -121,6 +121,6 @@ namespace SDG.Unturned.LinuxPerformance
 
 	public static class FidelityFxNative
 	{
-		public static string SdkVersion => "FidelityFX SDK v1.1.4 planejado; não vendorizado neste estado do repositório.";
+		public static string SdkVersion => "AMD FidelityFX FSR 2.2.1, tag v2.2.1, commit 1680d1edd5c034f88ebbbb793d8b88f8842cf804.";
 	}
 }
